@@ -11,6 +11,12 @@ def low_pass_filter(signal, order, fs, fpass):
   b, a = butter(order, cutoff, btype='low')
   return filtfilt(b, a,  signal)
 
+def moving_average_filter(signal, window_size):
+    window = np.ones(window_size) / window_size
+    smoothed_signal = np.convolve(signal, window, mode='same')
+    return smoothed_signal
+
+
 # Neel relaxation time Fannin and Charless
 def NeelRelaxation(sig, t0):
   if sig < 1:

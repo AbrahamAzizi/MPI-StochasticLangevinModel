@@ -1,5 +1,5 @@
 from init import *
-from utlis import low_pass_filter, peaksInit, peaks_analysis, Ht
+from utlis import low_pass_filter, moving_average_filter, peaksInit, peaks_analysis, Ht
 import numpy as np
 from numpy import genfromtxt
 import matplotlib.pyplot as plt
@@ -55,26 +55,29 @@ if __name__ == '__main__':
     x = np.fft.fftshift(freqs / f)[N:]
 
     # IGP30 magnetization-time
-    M = genfromtxt('IPG30.csv', delimiter=',')
+    M = genfromtxt('MNP-sizeDistribution/IPG30.csv', delimiter=',')
     M_lowPass=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        M_lowPass[i,:] = low_pass_filter(M[i,:], 1, 10000*f, 3*f)
+        filtSignal = low_pass_filter(M[i,:], 1, 10000*f, 25*f)
+        M_lowPass[i,:] = moving_average_filter(filtSignal, 500)
     stdIGP30 = .09
     sigmaCore_list = np.round(stdIGP30*np.array([.5, 1, 3, 5, 10]),3)
     color_list, trsp_list = colorMap(sigmaCore_list, 'forest', ['lime', 'seagreen', 'forestgreen'])
     fig, ax1 = initialize_figure()
     ax1.plot(t * 1e3, He * 1e3, 'black', label='H', linewidth=3.0)
     ax1.set_xlabel('Time (ms)', weight='bold', fontsize=20)
-    ax1.set_ylabel('$\mu_0$H (mT)', weight='bold', fontsize=20)
+    ax1.set_ylabel(r'$\mu_0$H (mT)', weight='bold', fontsize=20)
     ax1.xaxis.set_tick_params(labelsize=20)
     ax1.yaxis.set_tick_params(labelsize=20)
+    ax1.set_xlim(.01, .11)
     set_spines_grid(ax1)
     ax2 = ax1.twinx()
     for i in range(M.shape[0]):
-        ax2.plot(t * 1e3, Ms*M_lowPass[i, :] * 1e-3, color=color_list[i], alpha=trsp_list[i], linewidth=3.0, label=f'$\sigma$= {sigmaCore_list[i]}')
+        ax2.plot(t * 1e3, Ms*M_lowPass[i, :] * 1e-3, color=color_list[i], alpha=trsp_list[i], linewidth=3.0, label=rf'$\sigma$= {sigmaCore_list[i]}')
     ax2.set_ylabel('Mz (kA/m)', weight='bold', fontsize=20)
     ax2.xaxis.set_tick_params(labelsize=20)
     ax2.yaxis.set_tick_params(labelsize=20)
+    ax2.set_xlim(.01, .11)
     set_spines_grid(ax2)
     lines, labels = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
@@ -90,7 +93,8 @@ if __name__ == '__main__':
     for i in range(M.shape[0]):
         ax.plot(He[-k:]* 1e3, Ms*M_lowPass[i, -k:] * 1e-3 , color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
     ax.set_ylabel('Mz (kA/m)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax.set_xlim(-19, 19)
     set_spines_grid(ax)
     plt.tight_layout()
     plt.savefig('IPG30-magnetization-curve.png')
@@ -101,10 +105,10 @@ if __name__ == '__main__':
     fig, ax = initialize_figure(figsize=(12,6))
     for i in range(M.shape[0]):
         ax.plot(He[-k:]*1e3, dM[i, -k:]/dH[-k:] , color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax.set_ylabel(r'dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
+    ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
     ax.set_xlim(-18,18)
-    ax.set_ylim(0, 200)
+    ax.set_ylim(0, 250)
     set_spines_grid(ax)
     plt.tight_layout()
     plt.savefig('IPG30-psf.png')
@@ -118,7 +122,7 @@ if __name__ == '__main__':
         uk = np.fft.fft(unet)
         y = 1e6*abs(np.fft.fftshift(uk)/len(uk))[N:]  # 1e6 for scaling to uv
         # Filter x and y for integer values of x from 1 to 20
-        x_int = np.array([2*k+1 for k in range(21)])
+        x_int = np.array([2*k+1 for k in range(1, 21)])
         y_int = [y[np.argmin(np.abs(x - j))] for j in x_int]
         #markerline, stemlines, baseline = ax.stem(x_int, y_int, bottom=0, markerfmt="Dr")
         ax.plot(x_int, y_int, color=color_list[i], marker='D', markersize = 15, alpha=trsp_list[i], linewidth=3.0)
@@ -128,9 +132,9 @@ if __name__ == '__main__':
         #plt.setp(markerline, color=color_list[i], alpha=trsp_list[i], markersize=15)
         # Set color and alpha for baseline (usually invisible)
         #plt.setp(baseline, visible=False)
-    ax.set_xlim(0, 20)
-    ax.set_xticks(range(1, 21, 2))  # Set x-ticks every 2 units
-    ax.set_ylabel('Harmonics Magnitude($\mu$v)', weight='bold', fontsize=20)
+    ax.set_xlim(2, 20)
+    ax.set_xticks(range(3, 21, 2))  # Set x-ticks every 2 units
+    ax.set_ylabel(r'Harmonics Magnitude($\mu$v)', weight='bold', fontsize=20)
     ax.set_xlabel('f/fe', weight='bold', fontsize=20)
     set_spines_grid(ax)
     plt.tight_layout()
@@ -155,26 +159,29 @@ if __name__ == '__main__':
             writer.writerow(result)
 
     # SHS30 magnetization-time
-    M = genfromtxt('SHS30.csv', delimiter=',')
+    M = genfromtxt('MNP-sizeDistribution/SHS30.csv', delimiter=',')
     M_lowPass=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        M_lowPass[i,:] = low_pass_filter(M[i,:], 1, 10000*f, 3*f)
+        filtSignal = low_pass_filter(M[i,:], 1, 10000*f, 25*f)
+        M_lowPass[i,:] = moving_average_filter(filtSignal, 500)
     stdSHS30 = .08
     sigmaCore_list = np.round(stdSHS30*np.array([.5, 1, 3, 5, 10]),3)
     color_list, trsp_list = colorMap(sigmaCore_list, 'sunset', ['gold', 'orange', 'darkorange'])
     fig, ax1 = initialize_figure()
     ax1.plot(t * 1e3, He * 1e3, 'black', label='H', linewidth=3.0)
     ax1.set_xlabel('Time (ms)', weight='bold', fontsize=20)
-    ax1.set_ylabel('$\mu_0$H (mT)', weight='bold', fontsize=20)
+    ax1.set_ylabel(r'$\mu_0$H (mT)', weight='bold', fontsize=20)
     ax1.xaxis.set_tick_params(labelsize=20)
     ax1.yaxis.set_tick_params(labelsize=20)
+    ax1.set_xlim(.01, .11)
     set_spines_grid(ax1)
     ax2 = ax1.twinx()
     ax2.xaxis.set_tick_params(labelsize=20)
     ax2.yaxis.set_tick_params(labelsize=20)
     for i in range(M.shape[0]):
-        ax2.plot(t * 1e3, Ms*M_lowPass[i, :] * 1e-3 ,linewidth=3.0, color=color_list[i], alpha=trsp_list[i], label=f'$\sigma$= {sigmaCore_list[i]}')
+        ax2.plot(t * 1e3, Ms*M_lowPass[i, :] * 1e-3 ,linewidth=3.0, color=color_list[i], alpha=trsp_list[i], label=rf'$\sigma$= {sigmaCore_list[i]}')
     ax2.set_ylabel('Mz (kA/m)', weight='bold', fontsize=20)
+    ax2.set_xlim(.01, .11)
     set_spines_grid(ax2)
     lines, labels = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
@@ -189,8 +196,9 @@ if __name__ == '__main__':
     fig, ax = initialize_figure(figsize=(12,6))
     for i in range(M.shape[0]):
         ax.plot(He[-k:]* 1e3, Ms*M_lowPass[i, -k:] * 1e-3 , color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('Mz (kA/m)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax.set_ylabel(r'Mz (kA/m)', weight='bold', fontsize=30)
+    ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax.set_xlim(-19, 19)
     set_spines_grid(ax)
     plt.tight_layout()
     plt.savefig('SHS30-magnetization-curve.png')
@@ -201,10 +209,10 @@ if __name__ == '__main__':
     fig, ax = initialize_figure(figsize=(12,6))
     for i in range(M.shape[0]):
         ax.plot(He[-k:]*1e3, dM[i, -k:]/dH[-k:] , color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax.set_ylabel(r'dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
+    ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
     ax.set_xlim(-18,18)
-    ax.set_ylim(0, 200)
+    ax.set_ylim(0, 250)
     set_spines_grid(ax)
     plt.tight_layout()
     plt.savefig('SHS30-psf.png')
@@ -218,12 +226,12 @@ if __name__ == '__main__':
         uk = np.fft.fft(unet)
         y = 1e6 * abs(np.fft.fftshift(uk) / len(uk))[N:]  # 1e6 for scaling to uv
         # Filter x and y for integer values of x from 1 to 20
-        x_int = np.array([2 * k + 1 for k in range(21)])
+        x_int = np.array([2 * k + 1 for k in range(1, 21)])
         y_int = [y[np.argmin(np.abs(x - j))] for j in x_int]
         ax.plot(x_int, y_int, color=color_list[i], marker='D', markersize = 15, alpha=trsp_list[i], linewidth=3.0)
-    ax.set_xlim(0, 20)
-    ax.set_xticks(range(1, 21, 2))  # Set x-ticks every 2 units
-    ax.set_ylabel('Harmonics Magnitude($\mu$v)', weight='bold', fontsize=20)
+    ax.set_xlim(2, 20)
+    ax.set_xticks(range(3, 21, 2))  # Set x-ticks every 2 units
+    ax.set_ylabel(r'Harmonics Magnitude($\mu$v)', weight='bold', fontsize=20)
     ax.set_xlabel('f/fe', weight='bold', fontsize=20)
     set_spines_grid(ax)
     plt.tight_layout()
@@ -248,26 +256,29 @@ if __name__ == '__main__':
             writer.writerow(result)
 
     # SHP25 magnetization-time
-    M = genfromtxt('SHP25.csv', delimiter=',')
+    M = genfromtxt('MNP-sizeDistribution/SHP25.csv', delimiter=',')
     M_lowPass=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        M_lowPass[i,:] = low_pass_filter(M[i,:], 1, 10000*f, 3*f)
+        filtSignal = low_pass_filter(M[i,:], 1, 10000*f, 25*f)
+        M_lowPass[i,:] = moving_average_filter(filtSignal, 500)
     stdSHP25 = .05
     sigmaCore_list = np.round(stdSHP25*np.array([.5, 1, 3, 5, 10]),3)
     color_list, trsp_list = colorMap(sigmaCore_list, 'red-brown', ['lightcoral', 'red', 'firebrick'] )
     fig, ax1 = initialize_figure()
     ax1.plot(t * 1e3, He * 1e3, 'black', label='H', linewidth=3.0)
     ax1.set_xlabel('Time (ms)', weight='bold', fontsize=20)
-    ax1.set_ylabel('$\mu_0$H (mT)', weight='bold', fontsize=20)
+    ax1.set_ylabel(r'$\mu_0$H (mT)', weight='bold', fontsize=20)
     ax1.xaxis.set_tick_params(labelsize=20)
     ax1.yaxis.set_tick_params(labelsize=20)
+    ax1.set_xlim(.01, .11)
     set_spines_grid(ax1)
     ax2 = ax1.twinx()
     ax2.xaxis.set_tick_params(labelsize=20)
     ax2.yaxis.set_tick_params(labelsize=20)
     for i in range(M.shape[0]):
-        ax2.plot(t * 1e3, Ms*M_lowPass[i, :] * 1e-3 , linewidth=3.0, color=color_list[i], alpha=trsp_list[i], label=f'$\sigma$= {sigmaCore_list[i]}')
+        ax2.plot(t * 1e3, Ms*M_lowPass[i, :] * 1e-3 , linewidth=3.0, color=color_list[i], alpha=trsp_list[i], label=rf'$\sigma$= {sigmaCore_list[i]}')
     ax2.set_ylabel('Mz (kA/m)', weight='bold', fontsize=20)
+    ax2.set_xlim(.01, .11)
     set_spines_grid(ax2)
     lines, labels = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
@@ -283,7 +294,8 @@ if __name__ == '__main__':
     for i in range(M.shape[0]):
         ax.plot(He[-k:]* 1e3, Ms*M_lowPass[i, -k:] * 1e-3 , color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
     ax.set_ylabel('Mz (kA/m)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax.set_xlim(-19, 19)
     set_spines_grid(ax)
     plt.tight_layout()
     plt.savefig('SHP25-magnetization-curve.png')
@@ -294,8 +306,8 @@ if __name__ == '__main__':
     fig, ax = initialize_figure(figsize=(12,6))
     for i in range(M.shape[0]):
         ax.plot(He[-k:]*1e3, dM[i, -k:]/dH[-k:] , color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=20)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax.set_ylabel(r'dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=20)
+    ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
     ax.set_xlim(-18,18)
     ax.set_ylim(0, 200)
     set_spines_grid(ax)
@@ -311,12 +323,12 @@ if __name__ == '__main__':
         uk = np.fft.fft(unet)
         y = 1e6 * abs(np.fft.fftshift(uk) / len(uk))[N:]  # 1e6 for scaling to uv
         # Filter x and y for integer values of x from 1 to 20
-        x_int = np.array([2 * k + 1 for k in range(21)])
+        x_int = np.array([2 * k + 1 for k in range(1, 21)])
         y_int = [y[np.argmin(np.abs(x - j))] for j in x_int]
         ax.plot(x_int, y_int, color=color_list[i], marker='D', markersize = 15, alpha=trsp_list[i], linewidth=3.0)
-    ax.set_xlim(0, 20)
-    ax.set_xticks(range(1, 21, 2))  # Set x-ticks every 2 units
-    ax.set_ylabel('Harmonics Magnitude($\mu$v)', weight='bold', fontsize=20)
+    ax.set_xlim(2, 20)
+    ax.set_xticks(range(3, 21, 2))  # Set x-ticks every 2 units
+    ax.set_ylabel(r'Harmonics Magnitude($\mu$v)', weight='bold', fontsize=20)
     ax.set_xlabel('f/fe', weight='bold', fontsize=20)
     set_spines_grid(ax)
     plt.tight_layout()
@@ -341,26 +353,29 @@ if __name__ == '__main__':
             writer.writerow(result)
 
     # SHP15 magnetization-time
-    M = genfromtxt('SHP15.csv', delimiter=',')
+    M = genfromtxt('MNP-sizeDistribution/SHP15.csv', delimiter=',')
     M_lowPass=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        M_lowPass[i,:] = low_pass_filter(M[i,:], 1, 10000*f, 3*f)
+        filtSignal = low_pass_filter(M[i,:], 1, 10000*f, 25*f)
+        M_lowPass[i,:] = moving_average_filter(filtSignal, 500)
     stdSHP15 = .11
     sigmaCore_list = np.round(stdSHP15*np.array([.5, 1, 3, 5, 10]),3)
     color_list, trsp_list = colorMap(sigmaCore_list, 'grapes', ['violet', 'fuchsia', 'mediumvioletred'])
     fig, ax1 = initialize_figure()
     ax1.plot(t * 1e3, He * 1e3, 'black', label='H', linewidth=3.0)
     ax1.set_xlabel('Time (ms)', weight='bold', fontsize=20)
-    ax1.set_ylabel('$\mu_0$H (mT)', weight='bold', fontsize=20)
+    ax1.set_ylabel(r'$\mu_0$H (mT)', weight='bold', fontsize=20)
     ax1.xaxis.set_tick_params(labelsize=20)
     ax1.yaxis.set_tick_params(labelsize=20)
+    ax1.set_xlim(.01, .11)
     set_spines_grid(ax1)
     ax2 = ax1.twinx()
     ax2.xaxis.set_tick_params(labelsize=20)
     ax2.yaxis.set_tick_params(labelsize=20)
     for i in range(M.shape[0]):
-        ax2.plot(t * 1e3, Ms*M_lowPass[i, :] * 1e-3 ,linewidth=3.0, color=color_list[i], alpha=trsp_list[i], label=f'$\sigma$= {sigmaCore_list[i]}')
+        ax2.plot(t * 1e3, Ms*M_lowPass[i, :] * 1e-3 ,linewidth=3.0, color=color_list[i], alpha=trsp_list[i], label=rf'$\sigma$= {sigmaCore_list[i]}')
     ax2.set_ylabel('Mz (kA/m)', weight='bold', fontsize=20)
+    ax2.set_xlim(.01, .11)
     set_spines_grid(ax2)
     lines, labels = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
@@ -376,7 +391,8 @@ if __name__ == '__main__':
     for i in range(M.shape[0]):
         ax.plot(He[-k:]* 1e3, Ms*M_lowPass[i, -k:] * 1e-3 , color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
     ax.set_ylabel('Mz (kA/m)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax.set_xlim(-19, 19)
     set_spines_grid(ax)
     plt.tight_layout()
     plt.savefig('SHP15-magnetization-curve.png')
@@ -387,10 +403,10 @@ if __name__ == '__main__':
     fig, ax = initialize_figure(figsize=(12,6))
     for i in range(M.shape[0]):
         ax.plot(He[-k:]*1e3, dM[i, -k:]/dH[-k:] , color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=20)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax.set_ylabel(r'dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=20)
+    ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
     ax.set_xlim(-18,18)
-    ax.set_ylim(0, 50)
+    ax.set_ylim(0, 60)
     set_spines_grid(ax)
     plt.tight_layout()
     plt.savefig('SHP15-psf.png')
@@ -404,12 +420,12 @@ if __name__ == '__main__':
         uk = np.fft.fft(unet)
         y = 1e6 * abs(np.fft.fftshift(uk) / len(uk))[N:]  # 1e6 for scaling to uv
         # Filter x and y for integer values of x from 1 to 20
-        x_int = np.array([2 * k + 1 for k in range(21)])
+        x_int = np.array([2 * k + 1 for k in range(1, 21)])
         y_int = [y[np.argmin(np.abs(x - j))] for j in x_int]
         ax.plot(x_int, y_int, color=color_list[i], marker='D', markersize = 15, alpha=trsp_list[i], linewidth=3.0)
-    ax.set_xlim(0, 20)
-    ax.set_xticks(range(1, 21, 2))  # Set x-ticks every 2 units
-    ax.set_ylabel('Harmonics Magnitude($\mu$v)', weight='bold', fontsize=20)
+    ax.set_xlim(2, 20)
+    ax.set_xticks(range(3, 21, 2))  # Set x-ticks every 2 units
+    ax.set_ylabel(r'Harmonics Magnitude($\mu$v)', weight='bold', fontsize=20)
     ax.set_xlabel('f/fe', weight='bold', fontsize=20)
     set_spines_grid(ax)
     plt.tight_layout()
