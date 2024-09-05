@@ -1,9 +1,9 @@
 import numpy as np
 
 class Params:
-    def __init__(self, kB=1.381e-23, gamGyro=2e9, Ms=3e5, dCore=5e-9, dHyd=10e-9,
+    def __init__(self, kB=1.381e-23, gamGyro=1.76e11, Ms=3e5, dCore=30e-9, dHyd=40e-9,
                  temp=300, alpha=1, kAnis=3e3, visc=1e-3, filedStrength=20e-3,
-                 nPeriod=2, fieldFreq=25e3, nParticle=1000):
+                 nPeriod=3, fieldFreq=25e3, nParticle=1000):
         self.kB = kB
         self.gamGyro = gamGyro
         self.Ms = Ms
@@ -29,11 +29,7 @@ class Params:
         self.tB = 3 * self.visc * self.vHyd / (self.kB * self.temp)  # Brown relaxation time
         self.xi0 = self.mu * self.fieldB / (self.kB * self.temp)  # unitless energy
         self.dt_init = min(self.f_excitation * self.t0, self.f_excitation * self.tB)  # unitless time step
-        self.torque_noise_variance = self.tB
-        self.thermal_noise_variance = self.t0
-        self.teval = np.arange(0, 1, self.dt_init)  # time grid for one period
-        self.tPts = int(2 ** np.ceil(np.log2(len(self.teval))))  # number of grids in one period
-        self.tu = np.linspace(0, self.nPeriod, 10000 * self.nPeriod)
+        self.tu = np.linspace(0, self.nPeriod, 30000 * self.nPeriod)
         #self.tu = np.linspace(0, self.nPeriod, self.tPts * self.nPeriod)  # unitless time grids 10 times larger
         self.dt = self.tu[1]
         self.ut = self.dt / self.f_excitation / self.tB
@@ -48,8 +44,6 @@ class Params:
             'neel_event_time': self.t0,
             'brown_relax_time': self.tB,
             'time_step': self.dt,
-            'torque_noise_variance': self.torque_noise_variance,
-            'field_noise_variance': self.thermal_noise_variance,
             'evaluation_time_length': len(self.tu),
             'unitless_anisotropy': self.unitlessAnis,
             'constant_damping': self.alpha,
@@ -67,14 +61,3 @@ class Params:
             else:
                 raise AttributeError(f"'Params' object has no attribute '{key}'")
         self.calculate_params()
-
-# Example usage:
-# params = Params()
-# # Get the initial calculated values
-# initial_values = params.get_params()
-# print("Initial values:", initial_values)
-#
-# # Update some parameters and get the new calculated values
-# params.set_params(temp=350, alpha=0.2)
-# updated_values = params.get_params()
-# print("Updated values:", updated_values)

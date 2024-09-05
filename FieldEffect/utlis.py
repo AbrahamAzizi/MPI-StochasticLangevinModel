@@ -11,6 +11,13 @@ def low_pass_filter(signal, order, fs, fpass):
   b, a = butter(order, cutoff, btype='low')
   return filtfilt(b, a,  signal)
 
+def moving_average_filter(signal, window_size):
+    window = np.ones(window_size) / window_size
+    smoothed_signal = np.convolve(signal, window, mode='same')
+    return smoothed_signal
+
+Ht = lambda f, t: np.cos(2*np.pi*f*t)
+
 # Neel relaxation time Fannin and Charless
 def NeelRelaxation(sig, t0):
   if sig < 1:
@@ -22,11 +29,7 @@ def CombinedNeelBrown(init_data):
     xi0 = init_data['unitless_energy']
     ut = init_data['normalized_brown_time_step']
     vt = init_data['normalized_neel_time_step']
-    t0 = init_data['neel_event_time']
-    tB = init_data['brown_relax_time']
     dt = init_data['time_step']
-    Hthermal = init_data['field_noise_variance']
-    Tthermal = init_data['torque_noise_variance']
     lent = init_data['evaluation_time_length']
     sig = init_data['unitless_anisotropy']
     al = init_data['constant_damping']
@@ -45,13 +48,13 @@ def CombinedNeelBrown(init_data):
 
         a = np.sum(m * n, axis=1)
 
-        dn = (1/tB)*(sig*a[:, np.newaxis] * (m - a[:, np.newaxis] * n) * ut + np.cross(np.sqrt(Tthermal)*np.random.randn(num, 3), n) * np.sqrt(ut))
+        dn = sig*a[:, np.newaxis] * (m - a[:, np.newaxis] * n) * ut + np.cross(np.random.randn(num, 3), n) * np.sqrt(ut)
         n = n + dn
         n = n / np.linalg.norm(n, axis=1, keepdims=True)
 
         xi = xI * np.cos(2 * np.pi * j * dt) + 2*sig * a[:, np.newaxis] * n  # total field over time
 
-        h = np.sqrt(Hthermal)*np.random.randn(num, 3)
+        h = np.random.randn(num, 3)
         f1 = np.cross(xi / al + np.cross(m, xi), m) / 2
         g1 = np.cross(h / al + np.cross(m, h), m)
         mb = m + f1 * vt + g1 * np.sqrt(vt)
@@ -60,18 +63,18 @@ def CombinedNeelBrown(init_data):
 
         xb = xI * np.cos(2 * np.pi * (j + 1) * dt) + 2*sig * a2[:, np.newaxis] * n
 
-        h2 = np.sqrt(Hthermal)*np.random.randn(num, 3)
+        h2 = np.random.randn(num, 3)
         f2 = np.cross(xb / al + np.cross(mb, xb), mb) / 2
         g2 = np.cross(h2 / al + np.cross(mb, h2), mb)
 
-        m = (1/t0)*(m + (f1 + f2) * vt / 2 + (g1 + g2) * np.sqrt(vt) / 2)
+        m = m + (f1 + f2) * vt / 2 + (g1 + g2) * np.sqrt(vt) / 2
         m = m / np.linalg.norm(m, axis=1, keepdims=True)
 
         #print('\r', 'time steps: ' + "." * 10 + " ", end=str(j)+'/'+str(lent-1))
 
     return M[:,-1], N
 
-def peaksInit(He, dMk, dH, cycs, H_range=(-15e-3, 15e-3)):
+def peaksInit(He, dMk, dH, cycs, H_range=(-18e-3, 18e-3)):
     l = dMk.shape[0]
     khalf = int(l / (2 * cycs))
     Hl = He[-2*khalf: -khalf]
