@@ -70,7 +70,7 @@ def CombinedNeelBrown(init_data):
         m = m + (f1 + f2) * vt / 2 + (g1 + g2) * np.sqrt(vt) / 2
         m = m / np.linalg.norm(m, axis=1, keepdims=True)
 
-        #print('\r', 'time steps: ' + "." * 10 + " ", end=str(j)+'/'+str(lent-1))
+        print('\r', 'time step in samples: ' + "." * 10 + " ", end=str(j)+'/'+str(lent-1))
 
     return M[:,-1], N
 
