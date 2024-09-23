@@ -59,7 +59,7 @@ if __name__ == '__main__':
     M = genfromtxt('MNP-sizeDistribution/IPG30.csv', delimiter=',')
     M_lowPass=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        filtSignal = low_pass_filter(M[i,:], 4, 10000*f, 10*f)
+        filtSignal = low_pass_filter(M[i,:], 4, 10000*f, 3*f)
         M_lowPass[i,:] = moving_average_filter(filtSignal, 500)
     stdIGP30 = .09
     sigmaCore_list = np.round(stdIGP30*np.array([.5, 1, 3, 5, 10]),3)
@@ -163,7 +163,7 @@ if __name__ == '__main__':
     M = genfromtxt('MNP-sizeDistribution/SHS30.csv', delimiter=',')
     M_lowPass=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        filtSignal = low_pass_filter(M[i,:], 4, 10000*f, 10*f)
+        filtSignal = low_pass_filter(M[i,:], 4, 10000*f, 3*f)
         M_lowPass[i,:] = moving_average_filter(filtSignal, 500)
     stdSHS30 = .08
     sigmaCore_list = np.round(stdSHS30*np.array([.5, 1, 3, 5, 10]),3)
@@ -260,7 +260,7 @@ if __name__ == '__main__':
     M = genfromtxt('MNP-sizeDistribution/SHP25.csv', delimiter=',')
     M_lowPass=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        filtSignal = low_pass_filter(M[i,:], 4, 10000*f, 10*f)
+        filtSignal = low_pass_filter(M[i,:], 4, 10000*f, 3*f)
         M_lowPass[i,:] = moving_average_filter(filtSignal, 500)
     stdSHP25 = .05
     sigmaCore_list = np.round(stdSHP25*np.array([.5, 1, 3, 5, 10]),3)
@@ -357,7 +357,7 @@ if __name__ == '__main__':
     M = genfromtxt('MNP-sizeDistribution/SHP15.csv', delimiter=',')
     M_lowPass=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        filtSignal = low_pass_filter(M[i,:], 4, 10000*f, 10*f)
+        filtSignal = low_pass_filter(M[i,:], 4, 10000*f, 3*f)
         M_lowPass[i,:] = moving_average_filter(filtSignal, 500)
     stdSHP15 = .11
     sigmaCore_list = np.round(stdSHP15*np.array([.5, 1, 3, 5, 10]),3)
