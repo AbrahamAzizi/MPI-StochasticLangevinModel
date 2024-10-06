@@ -16,6 +16,12 @@ def moving_average_filter(signal, window_size):
     smoothed_signal = np.convolve(signal, window, mode='same')
     return smoothed_signal
 
+def signaltonoise_dB(a, axis=0, ddof=0):
+    a = np.asanyarray(a)
+    m = a.mean(axis)
+    sd = a.std(axis=axis, ddof=ddof)
+    return 20*np.log10(abs(np.where(sd == 0, 0, m/sd)))
+
 Ht = lambda f, t: np.cos(2*np.pi*f*t)
 
 # Neel relaxation time Fannin and Charless
@@ -72,7 +78,7 @@ def CombinedNeelBrown(init_data):
 
         print('\r', 'time step in samples: ' + "." * 10 + " ", end=str(j)+'/'+str(lent-1))
 
-    return M[:,-1], N
+    return M[:,-1], N[:, -1]
 
 def peaksInit(He, dMk, dH, cycs, H_range=(-18e-3, 18e-3)):
     l = dMk.shape[0]
