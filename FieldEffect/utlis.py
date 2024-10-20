@@ -9,18 +9,12 @@ def low_pass_filter(signal, order, fs, fpass):
   fnyq = 0.5 * fs        # Nyquist frequency
   cutoff = fpass / fnyq  # Normalized cutoff frequency
   b, a = butter(order, cutoff, btype='low')
-  return filtfilt(b, a,  signal)
+  return filtfilt(b, a,  signal, padtype='even', padlen=1000)
 
 def moving_average_filter(signal, window_size):
     window = np.ones(window_size) / window_size
     smoothed_signal = np.convolve(signal, window, mode='same')
     return smoothed_signal
-
-def signaltonoise_dB(a, axis=0, ddof=0):
-    a = np.asanyarray(a)
-    m = a.mean(axis)
-    sd = a.std(axis=axis, ddof=ddof)
-    return 20*np.log10(abs(np.where(sd == 0, 0, m/sd)))
 
 Ht = lambda f, t: np.cos(2*np.pi*f*t)
 
@@ -81,15 +75,18 @@ def CombinedNeelBrown(init_data):
     return M[:,-1], N[:, -1]
 
 def peaksInit(He, dMk, dH, cycs, H_range=(-18e-3, 18e-3)):
+#    " This function takes the field He and dM/dH in a cutted bound of the field in which
+#    the edge effects of the field is not present and return the values of H and dM/dH for left
+#    and right peaks seperately "
     l = dMk.shape[0]
-    khalf = int(l / (2 * cycs))
-    Hl = He[-2*khalf: -khalf]
-    dmdhl = dMk[-2*khalf: -khalf] / dH[-2*khalf: -khalf]
-    Hr = He[-khalf:]
-    dmdhr = dMk[-khalf:] / dH[-khalf:]
+    khalf = int(l / (2 * cycs))   # half of a period to identify left peak
+    Hl = He[-2*khalf: -khalf]     # the array values of H for left peak 
+    dmdhl = dMk[-2*khalf: -khalf] / dH[-2*khalf: -khalf]    # dM/dH for the left peak
+    Hr = He[-khalf:]    # the array values of H for the right peak
+    dmdhr = dMk[-khalf:] / dH[-khalf:]  # dM/dH for the rigth peak
 
-    maskl = np.where((Hl >= H_range[0]) & (Hl <= H_range[1]))[0]
-    maskr = np.where((Hr >= H_range[0]) & (Hr <= H_range[1]))[0]
+    maskl = np.where((Hl >= H_range[0]) & (Hl <= H_range[1]))[0]    # mask Hl to avoid edge field 
+    maskr = np.where((Hr >= H_range[0]) & (Hr <= H_range[1]))[0]    # mask Hr to avoid edge field
 
     Hlmask = Hl[maskl]
     dMdHlmask = dmdhl[maskl]
@@ -97,24 +94,30 @@ def peaksInit(He, dMk, dH, cycs, H_range=(-18e-3, 18e-3)):
     dMdHrmask = dmdhr[maskr]
 
     return Hlmask, dMdHlmask , maskl, Hrmask, dMdHrmask, maskr
+
 def peaks_analysis(HeMask, dmdhMask, mask):
-    peaksIdx, _ = find_peaks(dmdhMask)
-    srt = np.sort(dmdhMask[peaksIdx])
-    max_peak = srt[-1]
-    idxMax = np.where(dmdhMask[peaksIdx] == max_peak)[0]
-    spline = UnivariateSpline(mask, dmdhMask - max_peak / 2, s=0)
+
+#  " This function gets the H and dM/dH with a specific range of the field (mask) and return
+#  the peak value and index, the coordinates (value and index) for fwhm"
+
+    peaksIdx, _ = find_peaks(dmdhMask)    # find peaks in dM/dH ( local max )
+    srt = np.sort(dmdhMask[peaksIdx])     
+    max_peak = srt[-1]                    # find the max peak ( global max )
+    idxMax = np.where(dmdhMask[peaksIdx] == max_peak)[0]    # index of the peak
+    spline = UnivariateSpline(mask, dmdhMask - max_peak / 2, s=0)   # root of an spline and dM/dH at half of the max ( peak ) 
     roots = spline.roots()
-    idxr1 = np.where(mask == int(np.ceil(roots[0])))[0]
+    # the root is real value to find index we get the two closest integer values and average
+    idxr1 = np.where(mask == int(np.ceil(roots[0])))[0] 
     idxr2 = np.where(mask == int(roots[0]))[0]
     idxr3 = np.where(mask == int(np.ceil(roots[1])))[0]
     idxr4 = np.where(mask == int(roots[1]))[0]
-    v1 = (HeMask[idxr1] + HeMask[idxr2])[0] / 2
-    v2 = (HeMask[idxr3] + HeMask[idxr4])[0] / 2
-    fwhm = abs(v2 - v1)
+    v1 = (HeMask[idxr1] + HeMask[idxr2])[0] / 2   # the value at the first root
+    v2 = (HeMask[idxr3] + HeMask[idxr4])[0] / 2   # the value at the second root
     res = {
         'dmdH_peak': max_peak,
         'He_peak': HeMask[peaksIdx[idxMax]][0],
         'fwhm_left': v1,
-        'fwhm_right': v2
+        'fwhm_right': v2,
+        'fwhm': abs(v2 - v1)    ## fwhm is the differences of these two values
     }
     return res

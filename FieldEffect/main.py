@@ -20,8 +20,7 @@ if __name__ == '__main__':
         M[i,:], N[i, :] = CombinedNeelBrown(init_data = init)
         print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(fieldAml_list)-1))
     print()
-    np.savetxt('FieldEffect/data/size25_M.csv', M, delimiter=',', comments='')
-    np.savetxt('FieldEffect/data/size25_N.csv', N, delimiter=',', comments='')
+    np.savetxt('FieldEffect/data/size25.csv', M, delimiter=',', comments='')
 
     # data set: magnetic particle core size = 30 nm
     dcore = 30e-9
@@ -38,7 +37,6 @@ if __name__ == '__main__':
         print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(fieldAml_list)-1))
     print()
     np.savetxt('FieldEffect/data/size30_M.csv', M, delimiter=',', comments='')
-    np.savetxt('FieldEffect/data/size30_N.csv', N, delimiter=',', comments='')
 
     # data set: magnetic particle core size = 35 nm
     dcore = 35e-9
@@ -55,4 +53,3 @@ if __name__ == '__main__':
         print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(fieldAml_list)-1))
     print()
     np.savetxt('FieldEffect/data/size35_M.csv', M, delimiter=',', comments='')
-    np.savetxt('FieldEffect/data/size35_N.csv', N, delimiter=',', comments='')

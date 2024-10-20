@@ -1,5 +1,5 @@
 from init import *
-from utlis import low_pass_filter, peaksInit, peaks_analysis, Ht
+from utlis import low_pass_filter, peaksInit, peaks_analysis, Ht, moving_average_filter
 import numpy as np
 from numpy import genfromtxt
 import matplotlib.pyplot as plt
@@ -7,6 +7,7 @@ from matplotlib import rcParams
 from matplotlib.colors import LinearSegmentedColormap
 import seaborn as sns
 import csv
+
 
 def initialize_figure(figsize=(18,6), dpi=300, font_scale=2):
     sns.set_context("notebook", font_scale=font_scale, )
@@ -70,10 +71,10 @@ if __name__ == '__main__':
                   [-9.9e-3, 9.9e-3],
                   [-4.9e-3, 4.9e-3]])
     mask = []
-    mask.append(np.where((He[0, -2*k:-k] >= fieldRange[0,0]) & (He[0, -2*k:-k] <= fieldRange[0,1]))[0])
-    mask.append(np.where((He[1, -2*k:-k] >= fieldRange[1,0]) & (He[1, -2*k:-k] <= fieldRange[1,1]))[0])
-    mask.append(np.where((He[2, -2*k:-k] >= fieldRange[2,0]) & (He[2, -2*k:-k] <= fieldRange[2,1]))[0])
-    mask.append(np.where((He[3, -2*k:-k] >= fieldRange[3,0]) & (He[3, -2*k:-k] <= fieldRange[3,1]))[0])
+    mask.append(np.where( (He[0, -2*k:-k] >= fieldRange[0,0]) & (He[0, -2*k:-k] <= fieldRange[0,1]) )[0])
+    mask.append(np.where( (He[1, -2*k:-k] >= fieldRange[1,0]) & (He[1, -2*k:-k] <= fieldRange[1,1]) )[0])
+    mask.append(np.where( (He[2, -2*k:-k] >= fieldRange[2,0]) & (He[2, -2*k:-k] <= fieldRange[2,1]) )[0])
+    mask.append(np.where( (He[3, -2*k:-k] >= fieldRange[3,0]) & (He[3, -2*k:-k] <= fieldRange[3,1]) )[0])
 
     # Magnetization in time for core size 25 nm
     M = genfromtxt('FieldEffect/data/size25.csv', delimiter=',')
@@ -113,7 +114,7 @@ if __name__ == '__main__':
     plt.savefig('FieldEffect/figures/core25-magnetization-curve.png')
 
     # Harmonics for core size 25
-    snr = []
+    snr= []
     fig, ax = initialize_figure(figsize=(12,6))
     for i in range(M.shape[0]):
         dHz = (lz ** 3) * np.diff(np.append(u0 * Ms * M[i, :], 0))
@@ -136,7 +137,6 @@ if __name__ == '__main__':
     set_spines_grid(ax)
     plt.tight_layout()
     plt.savefig('FieldEffect/figures/core25-harmonics.png')
-    print("SNR25= ", snr)
 
     # psf for core size 25
     Mfilt = np.zeros(M.shape)
@@ -144,9 +144,12 @@ if __name__ == '__main__':
         Mfilt[i,:] = low_pass_filter(Ms*M[i,:], 4, 10000*f, 5*f)
     dM = np.diff(np.append(Mfilt, np.zeros((M.shape[0], 1)), axis=1), axis=1)
     dH = np.diff(np.append(He, np.zeros((He.shape[0], 1)), axis=1), axis=1)
+    dMdH = np.zeros(M.shape)
+    for i in range(M.shape[0]):
+        dMdH[i, :] = moving_average_filter(dM[i,:]/dH[i, :], 100)
     fig, ax = initialize_figure(figsize=(12,6))
     for i in range(M.shape[0]-1):
-        ax.plot(He[i, -2*k:-k][mask[i]]*1e3, dM[i, -2*k:-k][mask[i]]/dH[i, -2*k:-k][mask[i]] , color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
+        ax.plot(He[i, -2*k:-k+1000][mask[i]]*1e3, dMdH[i, -2*k:-k+1000][mask[i]], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
     ax.set_ylabel(r'dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
     ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
     set_spines_grid(ax)
@@ -178,17 +181,19 @@ if __name__ == '__main__':
 
     # fwhm and peaks data for core size 25
     all_results = []
-    for i in range(M.shape[0]-1):  # not for the last field amplitude without sigmoidal M-H curve
+    fwhm = []
+    for i in range(M.shape[0]):  
         Hlmask, dMdHlmask, maskl, Hrmask, dMdHrmask, maskr = peaksInit(He[i], dM[i], dH[i], params.nPeriod,
                                                                        H_range=(fieldRange[i, 0],fieldRange[i,1]))
         resultl = peaks_analysis(Hlmask, dMdHlmask, maskl)
         resultr = peaks_analysis(Hrmask, dMdHrmask, maskr)
-        combined_result = {'CoreSize': i}  # Include the index as a core list identifier
+        combined_result = {'Field index': i}  # Include the index as a field list identifier
         combined_result.update({f'left peak {key}': value for key, value in resultl.items()})
         combined_result.update({f'right peak {key}': value for key, value in resultr.items()})
         all_results.append(combined_result)
+        fwhm.append(resultl["fwhm"])    # we choose fwhm of the left field
 
-    with open('FieldEffect/data/fwhm_peaks_Core20.csv', 'w', newline='') as csvfile:
+    with open('FieldEffect/data/fwhm_peaks_Core25.csv', 'w', newline='') as csvfile:
         fieldnames = all_results[0].keys()
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
@@ -233,7 +238,6 @@ if __name__ == '__main__':
     plt.savefig('FieldEffect/figures/core30-magnetization-curve.png')
 
     # Harmonics for core size 30
-    snr = []
     fig, ax = initialize_figure(figsize=(12,6))
     for i in range(M.shape[0]):
         dHz = (lz ** 3) * np.diff(np.append(u0 * Ms * M[i, :], 0))
@@ -265,9 +269,12 @@ if __name__ == '__main__':
     
     dM = np.diff(np.append(Mfilt, np.zeros((M.shape[0], 1)), axis=1), axis=1)
     dH = np.diff(np.append(He, np.zeros((He.shape[0], 1)), axis=1), axis=1)
-    fig, ax = initialize_figure(figsize=(12, 6))
+    dMdH = np.zeros(M.shape)
     for i in range(M.shape[0]-1):
-        ax.plot(He[i, -2*k:-k][mask[i]] * 1e3, dM[i, -2*k:-k][mask[i]] / dH[i, -2*k:-k][mask[i]], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
+        dMdH[i, :] = moving_average_filter(dM[i,:]/dH[i, :], 100)
+    fig, ax = initialize_figure(figsize=(12, 6))
+    for i in range(M.shape[0]):
+        ax.plot(He[i, -2*k:-k][mask[i]] * 1e3, dMdH[i, -2*k:-k][mask[i]], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
 
     ax.set_ylabel(r'dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
     ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
@@ -301,7 +308,7 @@ if __name__ == '__main__':
 
     # fwhm and peaks data for core size 30
     all_results = []
-    for i in range(M.shape[0]-1):  # not for the last two field amplitudes
+    for i in range(M.shape[0]):  # not for the last two field amplitudes
         Hlmask, dMdHlmask, maskl, Hrmask, dMdHrmask, maskr = peaksInit(He[i], dM[i], dH[i], params.nPeriod,
                                                                        H_range=(fieldRange[i, 0],fieldRange[i,1]))
         resultl = peaks_analysis(Hlmask, dMdHlmask, maskl)
@@ -310,6 +317,7 @@ if __name__ == '__main__':
         combined_result.update({f'left peak {key}': value for key, value in resultl.items()})
         combined_result.update({f'right peak {key}': value for key, value in resultr.items()})
         all_results.append(combined_result)
+        fwhm.append(resultl["fwhm"])
 
     with open('FieldEffect/data/fwhm_peaks_Core30.csv', 'w', newline='') as csvfile:
         fieldnames = all_results[0].keys()
@@ -357,7 +365,6 @@ if __name__ == '__main__':
     plt.savefig('FieldEffect/figures/core35-magnetization-curve.png')
 
     # Harmonics for core size 35
-    snr = []
     fig, ax = initialize_figure(figsize=(12,6))
     for i in range(M.shape[0]):
         dHz = (lz ** 3) * np.diff(np.append(u0 * Ms * M[i, :], 0))
@@ -380,17 +387,20 @@ if __name__ == '__main__':
     set_spines_grid(ax)
     plt.tight_layout()
     plt.savefig('FieldEffect/figures/Core35-harmonics.png')
-    print("SNR35= ", snr)
 
     # psf for core size 35nm
+    Mfilt = np.zeros(M.shape)
     for i in range(M.shape[0]):
-        Mfilt[i,:] = low_pass_filter(Ms*M[i,:], 4, 10000*f, 5*f)
+        Mfilt[i,:] = low_pass_filter(M[i,:], 4, 10000*f, 5*f)
     
     dM = np.diff(np.append(Mfilt, np.zeros((M.shape[0], 1)), axis=1), axis=1)
     dH = np.diff(np.append(He, np.zeros((He.shape[0], 1)), axis=1), axis=1)
+    dMdH = np.zeros(M.shape)
+    for i in range(M.shape[0]):
+        dMdH[i, :] = moving_average_filter(dM[i,:]/dH[i, :], 100)
     fig, ax = initialize_figure(figsize=(12, 6))
     for i in range(M.shape[0]-1):
-        ax.plot(He[i, -2*k:-k][mask[i]] * 1e3, dM[i, -2*k:-k][mask[i]] / dH[i, -2*k:-k][mask[i]], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
+        ax.plot(He[i, -2*k:-k][mask[i]] * 1e3, dMdH[i, -2*k:-k][mask[i]], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
 
     ax.set_ylabel(r'dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
     ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
@@ -432,6 +442,7 @@ if __name__ == '__main__':
         combined_result.update({f'left peak {key}': value for key, value in resultl.items()})
         combined_result.update({f'right peak {key}': value for key, value in resultr.items()})
         all_results.append(combined_result)
+        fwhm.append(resultl["fwhm"])
 
     with open('FieldEffect/data/fwhm_peaks_Core35.csv', 'w', newline='') as csvfile:
         fieldnames = all_results[0].keys()
@@ -439,4 +450,27 @@ if __name__ == '__main__':
         writer.writeheader()
         for result in all_results:
             writer.writerow(result)
+
+#SNR-FWHM
+fig, ax1 = initialize_figure()
+ax1.plot(fieldAml_list, snr[:4], '--', color='b', marker= 'D', markersize=15, label='SNR @ 25 nm')
+ax1.plot(fieldAml_list, snr[4:8], '--', color='g', marker= 'D', markersize=15, label='SNR @ 30 nm')
+ax1.plot(fieldAml_list, snr[8:], '--', color='r', marker= 'D', markersize=15, label='SNR @ 35 nm')
+ax1.set_ylabel('SNR(dB)', weight='bold', fontsize=30)
+ax1.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
+set_spines_grid(ax1)
+ax2 = ax1.twinx()
+ax2.plot(fieldAml_list, np.array(fwhm[:4])*1e3, ':', color='b', marker= '*', markersize=15, label='FWHM @ 25 nm')
+ax2.plot(fieldAml_list, np.array(fwhm[4:8])*1e3, ':', color='g', marker= '*', markersize=15, label='FWHM @ 30 nm')
+ax2.plot(fieldAml_list, np.append(fwhm[8:], np.nan)*1e3, ':', color='r', marker= '*', markersize=15, label='FWHM @ 35 nm')
+ax2.set_ylabel('FWHM(mT/$\mu_0$)', weight='bold', fontsize=30)
+set_spines_grid(ax2)
+lines, labels = ax1.get_legend_handles_labels()
+lines2, labels2 = ax2.get_legend_handles_labels()
+legend = ax1.legend(lines + lines2, labels + labels2, loc='upper left', bbox_to_anchor=(1.12, 1))
+set_legend_properties(legend)
+plt.tight_layout()
+plt.savefig('FieldEffect/figures/snr_fwhm.png')
+
+
 
