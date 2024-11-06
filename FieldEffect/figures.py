@@ -470,7 +470,7 @@ lines2, labels2 = ax2.get_legend_handles_labels()
 legend = ax1.legend(lines + lines2, labels + labels2, loc='upper left', bbox_to_anchor=(1.12, 1))
 set_legend_properties(legend)
 plt.tight_layout()
-plt.savefig('FieldEffect/figures/snr_fwhm.png')
+plt.savefig('FieldEffect/figures/snr_fwhm.jpg')
 
 
 
