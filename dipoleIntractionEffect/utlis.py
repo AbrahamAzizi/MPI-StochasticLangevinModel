@@ -141,87 +141,6 @@ def CombinedNeelBrown(data):
 
     return M[:, -1], Hdipole[:, -1]
 
-# def CombinedNeelBrown(init_data):
-#     xi0 = init_data['unitless_energy']
-#     ut = init_data['normalized_brown_time_step']
-#     print("Brown noise power ut= ", ut)
-#     vt = init_data['normalized_neel_time_step']
-#     print("Neel noise power vt= ", vt)
-#     dt = init_data['time_step']
-#     print("time steps: dt = ", dt)
-#     lent = init_data['evaluation_time_length']
-#     sig = init_data['unitless_anisotropy']
-#     al = init_data['constant_damping']
-#     num = init_data['number_of_particles']
-#     A = init_data['particle_cordinates']
-#     mu = init_data['magnetic_moment']
-#     kT = init_data['Boltzman_energy']
-#     nrf = 1e-6 # this is the noise reduction factor 
-
-#     M = np.zeros((lent, 3))
-#     N = np.zeros((lent, 3))
-#     Hdipole = np.zeros((lent, 3))
-
-#     m = np.tile([1, 0, 0], (num, 1))
-#     n = m.copy()
-#     xI=np.tile([0, 0, xi0], (num, 1))
-
-#     serialNum, threadNum =contact_matrix(A, num, 250e-9)
-
-#     for j in range(lent):
-#         M[j, :] = np.mean(m, axis=0)
-#         N[j, :] = np.mean(n, axis=0)
-
-#         a = np.sum(m * n, axis=1)
-
-#         dn = sig*a[:, np.newaxis] * (m - a[:, np.newaxis]) * n * ut + nrf*np.cross(np.random.randn(num, 3), n) * np.sqrt(ut)
-#         n = n + dn
-#         n = n / np.linalg.norm(n, axis=1, keepdims=True)
-
-#         Hdd = sum_dipole_field(A, num, m, threadNum, serialNum, mu, kT)
-
-#         Hdipole[j, :] = np.mean(Hdd, axis=0)
-
-#         xi = xI * np.cos(2 * np.pi * j * dt) + 2*sig * a[:, np.newaxis] * n + Hdd  # total field over time
-
-#         h = np.random.randn(num, 3)
-#         f1 = np.cross(xi / al + np.cross(m, xi), m) / 2
-#         g1 = np.cross(h / al + np.cross(m, h), m)
-#         mb = m + f1 * vt + nrf * g1 * np.sqrt(vt)
-
-#         a2 = np.sum(mb * n, axis=1)
-
-#         xb = xI * np.cos(2 * np.pi * (j + 1) * dt) + 2*sig * a2[:, np.newaxis] * n + Hdd
-
-#         h2 = np.random.randn(num, 3)
-#         f2 = np.cross(xb / al + np.cross(mb, xb), mb) / 2
-#         g2 = np.cross(h2 / al + np.cross(mb, h2), mb)
-
-#         m = m + (f1 + f2) * vt / 2 + (g1 + g2) * np.sqrt(vt) / 2
-#         m = m / np.linalg.norm(m, axis=1, keepdims=True)
-
-#         print('\r', 'time step in samples: ' + "." * 10 + " ", end=str(j)+'/'+str(lent-1))
-
-#     return M[:, -1], Hdipole[:, -1]
-
-def peaksInit(He, dMk, dH, cycs, H_range=(-18e-3, 18e-3)):
-    l = dMk.shape[0]
-    khalf = int(l / (2 * cycs))
-    Hl = He[-2*khalf: -khalf]
-    dmdhl = dMk[-2*khalf: -khalf] / dH[-2*khalf: -khalf]
-    Hr = He[-khalf:]
-    dmdhr = dMk[-khalf:] / dH[-khalf:]
-
-    maskl = np.where((Hl >= H_range[0]) & (Hl <= H_range[1]))[0]
-    maskr = np.where((Hr >= H_range[0]) & (Hr <= H_range[1]))[0]
-
-    Hlmask = Hl[maskl]
-    dMdHlmask = dmdhl[maskl]
-    Hrmask = Hr[maskr]
-    dMdHrmask = dmdhr[maskr]
-
-    return Hlmask, dMdHlmask , maskl, Hrmask, dMdHrmask, maskr
-
 def peaks_analysis(HeMask, dmdhMask, mask):
     peaksIdx, _ = find_peaks(dmdhMask)
     srt = np.sort(dmdhMask[peaksIdx])
@@ -240,6 +159,7 @@ def peaks_analysis(HeMask, dmdhMask, mask):
         'dmdH_peak': max_peak,
         'He_peak': HeMask[peaksIdx[idxMax]][0],
         'fwhm_left': v1,
-        'fwhm_right': v2
+        'fwhm_right': v2,
+        'fwhm': fwhm,
     }
     return res
