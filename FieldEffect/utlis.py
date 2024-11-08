@@ -9,7 +9,7 @@ def low_pass_filter(signal, order, fs, fpass):
   fnyq = 0.5 * fs        # Nyquist frequency
   cutoff = fpass / fnyq  # Normalized cutoff frequency
   b, a = butter(order, cutoff, btype='low')
-  return filtfilt(b, a,  signal, padtype='even', padlen=1000)
+  return filtfilt(b, a,  signal, padtype='even', padlen=100)
 
 def moving_average_filter(signal, window_size):
     window = np.ones(window_size) / window_size
@@ -25,22 +25,40 @@ def NeelRelaxation(sig, t0):
   else:
     return t0 * np.exp(sig) / 2 * np.sqrt(np.pi / sig ** 3)
 
-def CombinedNeelBrown(init_data):
-    xi0 = init_data['unitless_energy']
-    ut = init_data['normalized_brown_time_step']
-    vt = init_data['normalized_neel_time_step']
-    dt = init_data['time_step']
-    lent = init_data['evaluation_time_length']
-    sig = init_data['unitless_anisotropy']
-    al = init_data['constant_damping']
-    num = init_data['number_of_particles']
+def CombinedNeelBrown(data):
+    al = data.alpha
+    gam = data.gamGyro
+    visc = data.visc
+    cycs = data.nPeriod
+    num = data.nParticle
+    kT = data.kB*data.temp
+    B = data.fieldAmpl
+    f = data.fieldFreq
+    dco = data.dCore
+    dhy = data.dHyd
+    Ms = data.Ms
+    ka = data.kAnis
+    Vc = 1 / 6 * np.pi * dco ** 3
+    Vh = 1 / 6 * np.pi * dhy ** 3
+    mu = Ms * Vc
+    sig = ka * Vc / kT
+    t0 = mu / (2 * gam * kT) * (1 + al ** 2) / al
+    tB = 3 * visc * Vh / kT
+    xi0 = mu * B / kT
+    fs = data.rsol*2*f 
+    dt = 1/fs
+    tf = cycs*(1/f)
+    lent = int(np.ceil(tf/dt))
+    wrf = 1e-3 # this is used to reduce the Wiener noise
+    ut = wrf*dt/tB
+    vt = wrf*dt/t0
+    nrf = 1e-6 # this is the noise reduction factor
 
     M = np.zeros((lent, 3))
     N = np.zeros((lent, 3))
-
     m = np.tile([1, 0, 0], (num, 1))
     n = m.copy()
-    xI = .5*np.tile([0, 0, xi0], (num, 1))
+    xI= np.tile([0, 0, xi0], (num, 1))
 
     for j in range(lent):
         M[j, :] = np.mean(m, axis=0)
@@ -48,20 +66,20 @@ def CombinedNeelBrown(init_data):
 
         a = np.sum(m * n, axis=1)
 
-        dn = sig*a[:, np.newaxis] * (m - a[:, np.newaxis] * n) * ut + np.cross(np.random.randn(num, 3), n) * np.sqrt(ut)
+        dn = sig*a[:, np.newaxis] * (m - a[:, np.newaxis] * n) * ut + nrf*np.cross(np.random.randn(num, 3), n) * np.sqrt(ut)
         n = n + dn
         n = n / np.linalg.norm(n, axis=1, keepdims=True)
-
-        xi = xI * np.cos(2 * np.pi * j * dt) + 2*sig * a[:, np.newaxis] * n  # total field over time
+        # total field over time
+        xi = xI * Ht(f,j*dt) + 2*sig * a[:, np.newaxis] * n
 
         h = np.random.randn(num, 3)
         f1 = np.cross(xi / al + np.cross(m, xi), m) / 2
         g1 = np.cross(h / al + np.cross(m, h), m)
-        mb = m + f1 * vt + g1 * np.sqrt(vt)
+        mb = m + f1 * vt + nrf*g1 * np.sqrt(vt)
 
         a2 = np.sum(mb * n, axis=1)
 
-        xb = xI * np.cos(2 * np.pi * (j + 1) * dt) + 2*sig * a2[:, np.newaxis] * n
+        xb = xI * Ht(f,(j+1)*dt) * 2*sig * a2[:, np.newaxis] * n
 
         h2 = np.random.randn(num, 3)
         f2 = np.cross(xb / al + np.cross(mb, xb), mb) / 2
@@ -72,7 +90,7 @@ def CombinedNeelBrown(init_data):
 
         print('\r', 'time step in samples: ' + "." * 10 + " ", end=str(j)+'/'+str(lent-1))
 
-    return M[:,-1], N[:, -1]
+    return M[:, -1], N[:, -1]
 
 def peaksInit(He, dMk, dH, cycs, H_range=(-18e-3, 18e-3)):
 #    " This function takes the field He and dM/dH in a cutted bound of the field in which
