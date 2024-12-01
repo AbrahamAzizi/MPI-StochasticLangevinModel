@@ -123,7 +123,7 @@ if __name__ == '__main__':
         dMdt = -pz * u0 * dM/dift 
         for j in range(wincnt):
             tmp = dMdt[j*winlen : (j+1)*winlen]
-            uz[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 40, 2, mode='nearest')
+            uz[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 25, 2, mode='nearest')
         uk = np.fft.fft(uz[i])
         y = 1e6*abs(np.fft.fftshift(uk)/len(uk))[N:]  # 1e6 for scaling to uv
         x_int = np.array([2*k+1 for k in range(1, 11)])
@@ -148,7 +148,7 @@ if __name__ == '__main__':
         dMdH = dM/dH 
         for j in range(wincnt):
             tmp = dMdH[j*winlen : (j+1)*winlen]
-            psf[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 40, 2, mode='nearest')
+            psf[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 25, 2, mode='nearest')
         ax.plot(He[2*winlen:4*winlen]*1e3, psf[i,2*winlen:4*winlen], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
     ax.set_ylabel(r'dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
     ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
@@ -225,7 +225,7 @@ if __name__ == '__main__':
         dMdt = -pz * u0 * dM/dift 
         for j in range(wincnt):
             tmp = dMdt[j*winlen : (j+1)*winlen]
-            uz[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 40, 2, mode='nearest')
+            uz[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 25, 2, mode='nearest')
         uk = np.fft.fft(uz[i])
         y = 1e6*abs(np.fft.fftshift(uk)/len(uk))[N:]  # 1e6 for scaling to uv
         x_int = np.array([2*k+1 for k in range(1, 11)])
@@ -250,7 +250,7 @@ if __name__ == '__main__':
         dMdH = dM/dH 
         for j in range(wincnt):
             tmp = dMdH[j*winlen : (j+1)*winlen]
-            psf[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 40, 2, mode='nearest')
+            psf[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 25, 2, mode='nearest')
         ax.plot(He[2*winlen:4*winlen]*1e3, psf[i,2*winlen:4*winlen], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
     ax.set_ylabel(r'dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
     ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
@@ -327,7 +327,7 @@ if __name__ == '__main__':
         dMdt = -pz * u0 * dM/dift 
         for j in range(wincnt):
             tmp = dMdt[j*winlen : (j+1)*winlen]
-            uz[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 40, 2, mode='nearest')
+            uz[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 25, 2, mode='nearest')
         uk = np.fft.fft(uz[i])
         y = 1e6*abs(np.fft.fftshift(uk)/len(uk))[N:]  # 1e6 for scaling to uv
         x_int = np.array([2*k+1 for k in range(1, 11)])
@@ -352,7 +352,7 @@ if __name__ == '__main__':
         dMdH = dM/dH 
         for j in range(wincnt):
             tmp = dMdH[j*winlen : (j+1)*winlen]
-            psf[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 40, 2, mode='nearest')
+            psf[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 25, 2, mode='nearest')
         ax.plot(He[2*winlen:4*winlen]*1e3, psf[i,2*winlen:4*winlen], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
     ax.set_ylabel(r'dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
     ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
@@ -429,7 +429,7 @@ if __name__ == '__main__':
         dMdt = -pz * u0 * dM/dift 
         for j in range(wincnt):
             tmp = dMdt[j*winlen : (j+1)*winlen]
-            uz[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 40, 2, mode='nearest')
+            uz[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 25, 2, mode='nearest')
         uk = np.fft.fft(uz[i])
         y = 1e6*abs(np.fft.fftshift(uk)/len(uk))[N:]  # 1e6 for scaling to uv
         x_int = np.array([2*k+1 for k in range(1, 11)])
@@ -454,7 +454,7 @@ if __name__ == '__main__':
         dMdH = dM/dH 
         for j in range(wincnt):
             tmp = dMdH[j*winlen : (j+1)*winlen]
-            psf[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 40, 2, mode='nearest')
+            psf[ i ,j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,beta)*tmp, 25, 2, mode='nearest')
         ax.plot(He[2*winlen:4*winlen]*1e3, psf[i,2*winlen:4*winlen], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
     ax.set_ylabel(r'dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
     ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
