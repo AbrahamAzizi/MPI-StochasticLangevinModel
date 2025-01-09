@@ -22,33 +22,45 @@ if __name__ == '__main__':
     data.dHyd = data.dCore + 10e-9
     fieldAml_list = 1e-3*np.array([20, 15, 10, 5])
     M = np.zeros( (len(fieldAml_list), lent) )
+    N = np.zeros( (len(fieldAml_list), lent) )
+    sigH = np.zeros( (len(fieldAml_list), lent) )
     for i, d in enumerate(fieldAml_list):
         data.fieldAmpl = d
-        M[i, :], _ = CombinedNeelBrown(data)
+        M[i, :], N[i, :], sigH[i,:] = CombinedNeelBrown(data)
         print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(fieldAml_list)-1))
     print()
-    np.savetxt('FieldEffect/data/size25.csv', M, delimiter=',', comments='')
+    np.savetxt('FieldEffect/data/Core25_M.csv', M, delimiter=',', comments='')
+    np.savetxt('FieldEffect/data/Core25_N.csv', N, delimiter=',', comments='')
+    np.savetxt('FieldEffect/data/Core25_sigH.csv', sigH, delimiter=',', comments='')
 
     # data set: magnetic particle core size = 30 nm
     data.dCore = 30e-9
     data.dHyd = data.dCore + 10e-9
     fieldAml_list = 1e-3*np.array([20, 15, 10, 5])
     M = np.zeros( (len(fieldAml_list), lent) )
+    N = np.zeros( (len(fieldAml_list), lent) )
+    sigH = np.zeros( (len(fieldAml_list), lent) )
     for i, d in enumerate(fieldAml_list):
         data.fieldAmpl = d
-        M[i, :], _ = CombinedNeelBrown(data)
+        M[i, :], N[i, :], sigH[i,:] = CombinedNeelBrown(data)
         print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(fieldAml_list)-1))
     print()
-    np.savetxt('FieldEffect/data/size30_M.csv', M, delimiter=',', comments='')
+    np.savetxt('FieldEffect/data/Core30_M.csv', M, delimiter=',', comments='')
+    np.savetxt('FieldEffect/data/Core30_N.csv', N, delimiter=',', comments='')
+    np.savetxt('FieldEffect/data/Core30_sigH.csv', sigH, delimiter=',', comments='')
 
     # data set: magnetic particle core size = 35 nm
     data.dCore = 35e-9
     data.dHyd = data.dCore + 10e-9
     fieldAml_list = 1e-3*np.array([20, 15, 10, 5])
     M = np.zeros( (len(fieldAml_list), lent) )
+    N = np.zeros( (len(fieldAml_list), lent) )
+    sigH = np.zeros( (len(fieldAml_list), lent) )
     for i, d in enumerate(fieldAml_list):
         data.fieldAmpl = d
-        M[i,:], _ = CombinedNeelBrown(data)
+        M[i,:], N[i, :], sigH[i,:] = CombinedNeelBrown(data)
         print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(fieldAml_list)-1))
     print()
-    np.savetxt('FieldEffect/data/size35_M.csv', M, delimiter=',', comments='')
+    np.savetxt('FieldEffect/data/Core35_M.csv', M, delimiter=',', comments='')
+    np.savetxt('FieldEffect/data/Core35_N.csv', N, delimiter=',', comments='')
+    np.savetxt('FieldEffect/data/Core35_sigH.csv', sigH, delimiter=',', comments='')
