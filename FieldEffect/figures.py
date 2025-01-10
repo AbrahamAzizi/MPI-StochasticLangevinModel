@@ -1,5 +1,5 @@
 from init import *
-from utlis import psf_xiH, fwhm_and_psf_peaks, Ht, fwhm, dxi_dt
+from utlis import psf_xiH, fwhm_and_psf_peaks, Ht, fwhm, ftsignal
 import numpy as np
 from numpy import genfromtxt
 from scipy.signal import savgol_filter
@@ -73,19 +73,28 @@ def plot_M_H(He, m, Ms, color_list, trsp_list, figName):
     plt.tight_layout()
     plt.savefig(f'FieldEffect/figures/{figName}_M_H.png')
 
-def plot_Harmonics(t, st, color_list, trsp_list, figName):
-    freqs = np.fft.fftfreq(len(t), t[1] - t[0])
+def plot_Signal(xiH, sigH, m, n, xi0, lz, sig, dt, f, lent, pz, std, cycs, figName):
+    _, ax = initialize_figure(figsize=(12,6))
+    sf = np.zeros((len(fieldAml_list), lent-1))
+    for i in range(len(m)):
+        st, sf[i] = ftsignal(xiH[i], sigH[i], m[i], n[i], xi0[i], lz[i], sig, dt, f, num, mu, lent, pz, cycs)
+        ax.plot(t[:-1]*1e3,st, color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
+    ax.set_ylabel('V(v)', weight='bold', fontsize=30)
+    ax.set_xlabel('t(ms)', weight='bold', fontsize=30)
+    ax.set_xlim(.01, .11)
+    set_spines_grid(ax)
+    plt.tight_layout()
+    plt.savefig(f'FieldEffect/figures/{figName}_Signals.png')
+    #plot_Harmonics
+    freqs = np.fft.fftfreq(lent, dt)
     N = len(freqs) // 2
     x = np.fft.fftshift(freqs / f)[N:]
-    snr = []
+    snr=[]
     _, ax = initialize_figure(figsize=(12,6))
     for i in range(len(fieldAml_list)):
-        uk = np.fft.fft(st[i])
-        y = abs(np.fft.fftshift(uk)/len(uk))[N:]  # 1e6 for scaling to uv
         x_int = np.array([2*k+1 for k in range(1, 21)])
-        y_int = [y[np.argmin(np.abs(x - j))] for j in x_int]
-        sd = st[i].std()
-        snr.append(20*np.log10(abs(np.where(sd == 0, 0, y[3]/sd))))
+        y_int = [sf[i, np.argmin(np.abs(x - j))] for j in x_int]
+        snr.append(20*np.log10(abs(np.where(std == 0, 0, sf[i, 3]/std))))
         ax.plot(x_int, y_int, color=color_list[i], marker='D', markersize = 15, alpha=trsp_list[i], linewidth=3.0)
     ax.set_xlim(2, 20)
     ax.set_xticks(range(3, 20, 2))  # Set x-ticks every 2 units
@@ -99,24 +108,6 @@ def plot_Harmonics(t, st, color_list, trsp_list, figName):
     for i in range(len(m)):
         print(f'SNR for field ampl {fieldAml_list[i]} mT = ', snr[i])
     print(50*'-')
-
-def plot_Signal_Harmonics(xiH, sigH, m, n, xi0, lz, sig, dt, f, lent, pz, figName):
-    _, ax = initialize_figure(figsize=(12,6))
-    st = np.zeros((len(fieldAml_list), lent-1))
-    for i in range(len(m)):
-        leftxiH, leftpsf, rightxiH, rightpsf = psf_xiH(xiH[i], sigH[i], m[i], 2)
-        dxidt = dxi_dt(xi0[i], sig, dt, f, lent, m[i], n[i])
-        tmp = np.convolve(rightpsf,dxidt, mode='same')
-        st[i] = -(pz*mu*num/lz[i])*tmp
-        ax.plot(t[:-1]*1e3,st[i], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('V(v)', weight='bold', fontsize=30)
-    ax.set_xlabel('t(ms)', weight='bold', fontsize=30)
-    ax.set_xlim(.01, .11)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig(f'FieldEffect/figures/{figName}_Signals.png')
-    #plot_Harmonics
-    plot_Harmonics(t, st, color_list, trsp_list, figName)
 
 def plot_PSF(xiH, sigH, m, color_list, trsp_list, figName):
     _, ax = initialize_figure(figsize=(12,6))
@@ -199,6 +190,7 @@ if __name__ == '__main__':
         # read data
         figName = figName_list[i]
         dco = dco_list[i]*1e-9
+        dhyd = dco+10e-9
         color = colorName_list[i]
         colorVar = colorVar_list[i]
         m = genfromtxt(f'FieldEffect/data/{figName}_M.csv', delimiter=',')
@@ -215,10 +207,14 @@ if __name__ == '__main__':
 
         # signals and Harmonics
         Vc = 1 / 6 * np.pi * dco ** 3
+        Vh = 1 / 6 * np.pi * dhyd ** 3
         sig = ka*Vc/kT
         gz = 1 # 1T = * 795.7747 A/m
         pz = 20e-3 * 795.7747 / 1.59  # A/m/A   1T = 795.7747 A/m, I = 1.59 A
         mu = Ms * Vc
+        t0 = mu / (2 * data.gamGyro * kT) * (1 + data.alpha ** 2) / data.alpha
+        tB = 3 * data.visc * Vh / kT
+        std = t0+tB
         xiH = np.zeros((len(fieldAml_list), len(t)))
         xi0 = np.zeros(len(fieldAml_list))
         lz = np.zeros(len(fieldAml_list))
@@ -226,8 +222,7 @@ if __name__ == '__main__':
             lz[i] = a*1e-3/gz
             xi0[i] = mu * a*1e-3 / (2*kT)
             xiH[i,:] = np.array([xi0[i] * Ht(f,j*dt) for j in range(lent)])
-        st = np.zeros((len(fieldAml_list), lent-1))
-        st = plot_Signal_Harmonics(xiH, sigH, m, n, xi0, lz, sig, dt, f, lent, pz, figName)
+        plot_Signal(xiH, sigH, m, n, xi0, lz, sig, dt, f, lent, pz, std, cycs, figName)
 
         # PSF
         plot_PSF(xiH, sigH, m, color_list, trsp_list, figName)
