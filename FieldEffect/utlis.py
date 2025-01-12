@@ -38,14 +38,40 @@ def dxi_dt(xi0, sig, dt, f, lent, m, n):
   dxidt = xi0*(dH/dift) + sig * ( (dm/dift) * newn + newm * (dn/dift) + newm * newn * ( dn/dift ) ) 
   return dxidt
 
+def ftSignal(xiH, sigH, m, n, xi0, lz, sig, dt, f, lent, pz, num, mu, cycs):
+  st = np.zeros(lent-1)
+  sf = np.zeros(lent-1)
+  winlen = (np.where(xiH == np.min(xiH))[0][0] - np.where(xiH == np.max(xiH))[0][0])
+  dxidt = dxi_dt(xi0, sig, dt, f, lent, m, n)
+  for i in range(cycs):
+    _, leftpsf, _, rightpsf = psf_xiH(xiH, sigH, m, i+1)
+    _, leftpsf, _, rightpsf = psf_xiH(xiH, sigH, m, i+1)
+    j = 2*i # the first half of a period has leftpsf kernel and the other half has rightpsf kernel
+    st[j*winlen:(j+1)*winlen-1] = -(pz*mu*num*num/lz)*(-leftpsf)*dxidt[j*winlen:(j+1)*winlen-1]
+    st[(j+1)*winlen:(j+2)*winlen-1] = -(pz*mu*num*num/lz)*(-rightpsf)*dxidt[(j+1)*winlen:(j+2)*winlen-1]
+  uk = np.fft.fft(st)
+  sf = abs(np.fft.fftshift(uk))
+  return st, sf
+
 # Neel relaxation time Fannin and Charless
-def NeelRelaxation(sig, t0):
-  if sig < 1:
-    return t0 * (1 - 2 / 5 * sig + 48 / 875 * sig ** 2) ** (-1)
-  else:
-    return t0 * np.exp(sig) / 2 * np.sqrt(np.pi / sig ** 3)
+def NeelRelaxation(sig, t0, ka, Ms, xi0, B):
+  u0 = 4*np.pi*1e-7 
+  Hac = B/u0
+  Hk = 2*ka/(u0*Ms)
+  hac = Hac/Hk
+  a1 = .92 + .034*sig
+  a2 = -.45 + .045*sig
+  deltae = 1 - a1*hac + a2*hac**2
+  if B <= 10e-3:
+    tn = t0*np.sqrt(np.pi/sig)*(1/(1-hac))*np.exp(sig*deltae)
+  elif B > 10e-3:
+    tn1 = 0.5*t0*np.sqrt(np.pi/sig)*np.exp(sig)
+    tn2 = np.sqrt(1+1.97*xi0**3.18)
+    tn = tn1/tn2
+  return tn, hac
 
 def CombinedNeelBrown(data):
+    u0 = 4*np.pi*1e-7 
     al = data.alpha
     gam = data.gamGyro
     visc = data.visc
@@ -64,7 +90,7 @@ def CombinedNeelBrown(data):
     sig = ka * Vc / kT
     t0 = mu / (2 * gam * kT) * (1 + al ** 2) / al
     tB = 3 * visc * Vh / kT
-    xi0 = mu * B / (2*kT)
+    xi0 = mu * B / (kT)
     fs = data.rsol*2*f 
     dt = 1/fs
     tf = cycs*(1/f)
@@ -96,7 +122,7 @@ def CombinedNeelBrown(data):
         sign = sig * a[:, np.newaxis] * n
 
         h = np.random.randn(num, 3)
-        f1 = np.cross(xi / al + np.cross(m, xi), m) / 2
+        f1 = np.cross(xi / al + np.cross(m, xi), m)
         g1 = np.cross(h / al + np.cross(m, h), m)
         mb = m + f1 * vt + g1 * np.sqrt(vt)
 
@@ -105,7 +131,7 @@ def CombinedNeelBrown(data):
         xb = xI * Ht(f,(j+1)*dt) + sig * a2[:, np.newaxis] * n
 
         h2 = np.random.randn(num, 3)
-        f2 = np.cross(xb / al + np.cross(mb, xb), mb) / 2
+        f2 = np.cross(xb / al + np.cross(mb, xb), mb) 
         g2 = np.cross(h2 / al + np.cross(mb, h2), mb)
 
         m = m + (f1 + f2) * vt / 2 + (g1 + g2) * np.sqrt(vt) / 2

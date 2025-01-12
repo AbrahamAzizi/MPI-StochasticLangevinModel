@@ -24,8 +24,8 @@ if __name__ == '__main__':
     M = np.zeros( (len(fieldAml_list), lent) )
     N = np.zeros( (len(fieldAml_list), lent) )
     sigH = np.zeros( (len(fieldAml_list), lent) )
-    for i, d in enumerate(fieldAml_list):
-        data.fieldAmpl = d
+    for i, a in enumerate(fieldAml_list):
+        data.fieldAmpl = a
         M[i, :], N[i, :], sigH[i,:] = CombinedNeelBrown(data)
         print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(fieldAml_list)-1))
     print()
@@ -40,8 +40,8 @@ if __name__ == '__main__':
     M = np.zeros( (len(fieldAml_list), lent) )
     N = np.zeros( (len(fieldAml_list), lent) )
     sigH = np.zeros( (len(fieldAml_list), lent) )
-    for i, d in enumerate(fieldAml_list):
-        data.fieldAmpl = d
+    for i, a in enumerate(fieldAml_list):
+        data.fieldAmpl = a
         M[i, :], N[i, :], sigH[i,:] = CombinedNeelBrown(data)
         print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(fieldAml_list)-1))
     print()
@@ -56,8 +56,8 @@ if __name__ == '__main__':
     M = np.zeros( (len(fieldAml_list), lent) )
     N = np.zeros( (len(fieldAml_list), lent) )
     sigH = np.zeros( (len(fieldAml_list), lent) )
-    for i, d in enumerate(fieldAml_list):
-        data.fieldAmpl = d
+    for i, a in enumerate(fieldAml_list):
+        data.fieldAmpl = a
         M[i,:], N[i, :], sigH[i,:] = CombinedNeelBrown(data)
         print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(fieldAml_list)-1))
     print()
