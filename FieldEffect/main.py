@@ -8,7 +8,7 @@ if __name__ == '__main__':
     f = data.fieldFreq
     Ms = data.Ms
     cycs = data.nPeriod
-    data.rsol = 100
+    data.rsol = 5000
     rsol = data.rsol
     num = data.nParticle
     fs = rsol*2*f

@@ -47,8 +47,8 @@ def ftSignal(xiH, sigH, m, n, xi0, lz, sig, dt, f, lent, pz, num, mu, cycs):
     _, leftpsf, _, rightpsf = psf_xiH(xiH, sigH, m, i+1)
     _, leftpsf, _, rightpsf = psf_xiH(xiH, sigH, m, i+1)
     j = 2*i # the first half of a period has leftpsf kernel and the other half has rightpsf kernel
-    st[j*winlen:(j+1)*winlen-1] = -(pz*mu*num*num/lz)*(-leftpsf)*dxidt[j*winlen:(j+1)*winlen-1]
-    st[(j+1)*winlen:(j+2)*winlen-1] = -(pz*mu*num*num/lz)*(-rightpsf)*dxidt[(j+1)*winlen:(j+2)*winlen-1]
+    st[j*winlen:(j+1)*winlen-1] = -(pz*mu*num)*(-leftpsf)*dxidt[j*winlen:(j+1)*winlen-1]
+    st[(j+1)*winlen:(j+2)*winlen-1] = -(pz*mu*num)*(-rightpsf)*dxidt[(j+1)*winlen:(j+2)*winlen-1]
   uk = np.fft.fft(st)
   sf = abs(np.fft.fftshift(uk))
   return st, sf
@@ -90,14 +90,14 @@ def CombinedNeelBrown(data):
     sig = ka * Vc / kT
     t0 = mu / (2 * gam * kT) * (1 + al ** 2) / al
     tB = 3 * visc * Vh / kT
-    xi0 = mu * B / (kT)
+    xi0 = mu * B / (2*kT)
     fs = data.rsol*2*f 
     dt = 1/fs
     tf = cycs*(1/f)
     lent = int(np.ceil(tf/dt))
-    wrf = 1e-3 # this is used to reduce the Wiener noise
-    ut = wrf*dt/tB
-    vt = wrf*dt/t0
+    #wrf = 1e-3 # this is used to reduce the Wiener noise
+    ut = dt/tB
+    vt = dt/t0
 
     M = np.zeros((lent, 3))
     N = np.zeros((lent, 3))

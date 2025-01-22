@@ -183,7 +183,7 @@ if __name__ == '__main__':
     num = data.nParticle
     kT = data.kB*data.temp
     cycs = data.nPeriod
-    data.rsol = 100
+    data.rsol = 5000
     rsol = data.rsol
     fs = rsol*2*f
     dt = 1/fs
