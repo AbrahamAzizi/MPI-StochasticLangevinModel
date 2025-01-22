@@ -1,9 +1,32 @@
-import numpy as np
+import h5py
 from init import *
-from utlis import *
+from utils import MPI_Langevin_std_core, InducedVoltage, psf, fwhm_data
 
-if __name__ == '__main__':
-    
+def save_data(group, data, M, N, xif, sigf, psfval, uz, tcv, fwhml, fwhmr):
+    data_subgroup = group.create_group('init_data')
+    for key, value in vars(data).items():
+        data_subgroup.attrs[key] = value 
+
+    for i, d in enumerate(stdCore_list):
+        subgroup_name = f"std_{d:.2f}"  
+        subgroup = group.create_group(subgroup_name)
+        subgroup.create_dataset("Mz", data=M[i, :, 2])
+        subgroup.create_dataset("Nz", data=N[i, :, 2])
+        subgroup.create_dataset("AC_field", data=xif[i, :, 2])
+        subgroup.create_dataset("anisotropy_field", data=sigf[i])
+        subgroup.create_dataset("psf", data=psfval[i])
+        subgroup.create_dataset("uz", data=uz[i])
+        subgroup.attrs["tcv"] = tcv
+
+        leftpeak_subgroup = subgroup.create_group("peak_left")
+        for key, value in fwhml[f"std_{d:.2f}"].items():
+            leftpeak_subgroup.create_dataset(key, data=value)
+        rightpeak_subgroup = subgroup.create_group("peak_right")
+        for key, value in fwhmr[f"std_{d:.2f}"].items():
+            rightpeak_subgroup.create_dataset(key, data=value)
+
+if __name__ == '__main__':    
+    pz = 20e-3 * 795.7747 / 1.59  # A/m/A   1T = 795.7747 A/m, I = 1.59 A
     data = Data() 
     f = data.fieldFreq
     cycs = data.nPeriod
@@ -13,66 +36,47 @@ if __name__ == '__main__':
     dt = 1/fs
     tf = cycs*(1/f)
     lent = int(np.ceil(tf/dt))
+    stdList = np.array([.5, 1, 3, 5, 7])
 
-    # IGP30
-    meanCoreIGP30 = 29.53*1e-9
-    data.meanCore = meanCoreIGP30
-    coatingSize = 16*1e-9
-    data.coatingSize = coatingSize    
-    stdCoreIGP30 = .09
-    stdCore_list = np.round(stdCoreIGP30*np.array([.5, 1, 3, 5, 10]),3)
-    M = np.zeros( (len(stdCore_list), lent) )
-    for i, d in enumerate(stdCore_list):
-        data.stdCore = d
-        M[i, :], _, svIPG30= CombinedNeelBrown(data)
-        print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(stdCore_list)-1))
-    print()
-    np.savetxt('MNP-sizeDistribution/data/IPG30.csv', M, delimiter=',', comments='')
+    # Prepare for all groups
+    data_groups = {
+        'IPG30': (29.53*1e-9, 16*1e-9, .09),
+        'SHS30': (29.52*1e-9, 28*1e-9, .08),
+        'SHP25': (25.65*1e-9, 16*1e-9, .05),
+        'SHP15': (12.42*1e-9, 16*1e-9, .11)
+    }
 
-    # SHS30
-    meanCoreSHS30 = 29.52*1e-9
-    data.meanCore = meanCoreSHS30
-    coatingSize = 28*1e-9
-    data.coatingSize = coatingSize 
-    stdCoreSHS30 = .08
-    stdCore_list = np.round(stdCoreSHS30*np.array([.5, 1, 3, 5, 10]),3)
-    M = np.zeros( (len(stdCore_list), lent) )
-    for i, d in enumerate(stdCore_list):
-        data.stdCore = d
-        M[i, :], _, svSHS30 = CombinedNeelBrown(data)
-        print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(stdCore_list)-1))
-    print()
-    np.savetxt('MNP-sizeDistribution/data/SHS30.csv', M, delimiter=',', comments='')
+    with h5py.File('MNP-sizeDistribution/data/data.h5', 'w') as f:
+        for group_name, (meanCore, coatingSize, stdCoreFactor) in data_groups.items():
+            # Reset data for each group
+            data.meanCore = meanCore
+            data.coatingSize = coatingSize 
+            stdCore_list = np.round(stdCoreFactor * stdList, 3)
+            
+            M = np.zeros((len(stdCore_list), lent, 3))
+            N = np.zeros((len(stdCore_list), lent, 3))
+            xif = np.zeros((len(stdCore_list), lent, 3))
+            sigf = np.zeros((len(stdCore_list), lent, 3))
+            tcv = np.zeros(len(stdCore_list))
+            psfval = np.zeros((len(stdCore_list), lent-1))
+            uz = np.zeros((len(stdCore_list), lent-1))
+            fwhml = {}
+            fwhmr = {}
 
-    # SHP25
-    meanCoreSHP25 = 25.65*1e-9
-    data.meanCore = meanCoreSHP25
-    coatingSize = 16*1e-9
-    data.coatingSize = coatingSize 
-    stdCoreSHP25 = .05
-    stdCore_list = np.round(stdCoreSHP25*np.array([.5, 1, 3, 5, 10]),3)
-    M = np.zeros( (len(stdCore_list), lent) )
-    for i, d in enumerate(stdCore_list):
-        data.stdCore = d
-        M[i, :], _, svSHP25 = CombinedNeelBrown(data)
-        print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(stdCore_list)-1))
-    print()
-    np.savetxt('MNP-sizeDistribution/data/SHP25.csv', M, delimiter=',', comments='')
+            # Perform calculations for the current group
+            print(f"\n{group_name}: ")
+            for i, d in enumerate(stdCore_list):
+                print(f"\nsample std={d} ----- start", flush=True)
+                data.stdCore = d
+                M[i], N[i], xif[i], sigf[i], tcv[i] = MPI_Langevin_std_core(data)
+                psfval[i] = psf(M[i, :, 2], xif[i, :, 2], sigf[i, :, 2])
+                uz[i] = InducedVoltage(M[i, :, 2], xif[i, :, 2], pz, fs)
+                fwhml[f"std_{d:.2f}"], fwhmr[f"std_{d:.2f}"] = fwhm_data(psfval[i], xif[i, :, 2])
+                print(f"\nsample std={d} ----- completed.")
 
-    # SHP15
-    meanCoreSHP15 = 12.42*1e-9
-    data.meanCore = meanCoreSHP15
-    coatingSize = 16*1e-9
-    data.coatingSize = coatingSize 
-    stdCoreSHP15 = .11
-    stdCore_list = np.round(stdCoreSHP15*np.array([.5, 1, 3, 5, 10]),3)
-    M = np.zeros( (len(stdCore_list), lent) )
-    for i, d in enumerate(stdCore_list):
-        data.stdCore = d
-        M[i, :], _, svSHP15 = CombinedNeelBrown(data)
-        print('\r', 'fieldAmplitued_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(stdCore_list)-1))
-    print()
-    np.savetxt('MNP-sizeDistribution/data/SHP15.csv', M, delimiter=',', comments='')
+            if group_name in f:
+                del f[group_name]
+            group = f.create_group(group_name)
+            save_data(group, data, M, N, xif, sigf, psfval, uz, tcv, fwhml, fwhmr)
 
-    np.savetxt('MNP-sizeDistribution/data/sumVc.csv', np.array([svIPG30, svSHS30, svSHP25, svSHP15]), delimiter=',', comments='')
-
+            print(f"\n{group_name}_data ----- saved.")
