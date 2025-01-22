@@ -14,13 +14,8 @@ if __name__ == '__main__':
     print("applied field amplitudes: ", B)
     f = data.fieldFreq
     print("applied field frequencies: ", f)
-    Ms = data.Ms
     cycs = data.nPeriod
     rsol = data.rsol
-    num = data.nParticle
-    dco = data.dCore
-    Vc = 1 / 6 * np.pi * dco ** 3
-    mu = Ms * Vc
 
     fs = rsol*2*f
     print("sampling frequency: fs= ", fs)
@@ -30,15 +25,12 @@ if __name__ == '__main__':
     print("final simulation time: tf= ", tf)
     lent = int(np.ceil(tf/dt))
 
-    t = np.array([i*dt for i in range(lent)])
-    He = np.array([B*Ht(f,i*dt) for i in range(lent)])
-
     # core size 25
     core_size = 25e-9
     hyd_size = core_size + 10e-9
     data.dCore = core_size
     data.dHyd = hyd_size
-    minDistList = np.array([50, 65, 100, 150, 200, 250])
+    minDistList = np.array([50, 65, 100, 125, 150, 175, 200, 250])
     M = np.zeros( (len(minDistList), lent) )
     Hdd = np.zeros( (len(minDistList), lent) )
     for i, d in enumerate(minDistList):
@@ -54,7 +46,7 @@ if __name__ == '__main__':
     hyd_size = core_size + 10e-9
     data.dCore = core_size
     data.dHyd = hyd_size
-    minDistList = np.array([55, 70, 100, 150, 200, 250])
+    minDistList = np.array([55, 70, 100, 125, 150, 175, 200, 250])
     M = np.zeros( (len(minDistList), lent) )
     Hdd = np.zeros( (len(minDistList), lent) )
     for i, d in enumerate(minDistList):
@@ -71,7 +63,7 @@ if __name__ == '__main__':
     hyd_size = core_size + 10e-9
     data.dCore = core_size
     data.dHyd = hyd_size
-    minDistList = np.array([60, 75, 100, 150, 200, 250])
+    minDistList = np.array([60, 75, 100, 125, 150, 175, 200, 250])
     M = np.zeros( (len(minDistList), lent) )
     Hdd = np.zeros( (len(minDistList), lent) )
     for i, d in enumerate(minDistList):

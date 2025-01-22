@@ -18,7 +18,7 @@ def dipole_field(particlei, particlej, mj, mu, kT):
     lenr = np.linalg.norm(r)
     rhat = r / lenr  # Normalizing r
     B = (1e-7/lenr**3)*(3 * np.sum(mj*rhat) * rhat - mj)
-    return (mu*mu/kT)*B
+    return (mu*mu/(2*kT))*B
 
 def contact_matrix(A, num, threshold):
     SerialNum = np.zeros((num, num), dtype=int)
@@ -81,7 +81,7 @@ def CombinedNeelBrown(data):
     print("Neel attempting time: ", t0)
     tB = 3 * visc * Vh / kT
     print("Brown relaxation time: ", tB)
-    xi0 = mu * B / kT
+    xi0 = mu * B / (2*kT)
     fs = data.rsol*2*f # this cares about Nyquist sampling frequency fs > 2*f -> fs = Nsf * f
     print("sampling frequency: ", fs)
     dt = 1/fs
@@ -95,7 +95,6 @@ def CombinedNeelBrown(data):
     print("Weiner noise power in Brownian dynamics: ", ut)
     vt = wrf*dt/t0
     print("Weiner noise power in Magnetization dynamics: ", vt)
-    nrf = 1e-9 # this is the noise reduction factor
 
     M = np.zeros((lent, 3))
     N = np.zeros((lent, 3))
@@ -112,26 +111,26 @@ def CombinedNeelBrown(data):
 
         a = np.sum(m * n, axis=1)
 
-        dn = sig*a[:, np.newaxis] * (m - a[:, np.newaxis] * n) * ut + nrf*np.cross(np.random.randn(num, 3), n) * np.sqrt(ut)
+        dn = sig*a[:, np.newaxis] * (m - a[:, np.newaxis] * n) * ut + np.cross(np.random.randn(num, 3), n) * np.sqrt(ut)
         n = n + dn
         n = n / np.linalg.norm(n, axis=1, keepdims=True)
 
         Hdd = sum_dipole_field(A, num, m, threadNum, serialNum, mu, kT)
         Hdipole[j, :] = np.mean(Hdd, axis=0)
 
-        xi = xI * Ht(f,j*dt) + 2*sig * a[:, np.newaxis] * n + Hdd
+        xi = xI * Ht(f,j*dt) + sig * a[:, np.newaxis] * n + Hdd
 
         h = np.random.randn(num, 3)
-        f1 = np.cross(xi / al + np.cross(m, xi), m) / 2
+        f1 = np.cross(xi / al + np.cross(m, xi), m) 
         g1 = np.cross(h / al + np.cross(m, h), m)
-        mb = m + f1 * vt + nrf*g1 * np.sqrt(vt)
+        mb = m + f1 * vt + g1 * np.sqrt(vt)
 
         a2 = np.sum(mb * n, axis=1)
 
-        xb = xI * Ht(f,(j+1)*dt) * 2*sig * a2[:, np.newaxis] * n + Hdd
+        xb = xI * Ht(f,(j+1)*dt) + sig * a2[:, np.newaxis] * n + Hdd
 
         h2 = np.random.randn(num, 3)
-        f2 = np.cross(xb / al + np.cross(mb, xb), mb) / 2
+        f2 = np.cross(xb / al + np.cross(mb, xb), mb) 
         g2 = np.cross(h2 / al + np.cross(mb, h2), mb)
 
         m = m + (f1 + f2) * vt / 2 + (g1 + g2) * np.sqrt(vt) / 2
