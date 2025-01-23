@@ -92,7 +92,7 @@ if __name__ == '__main__':
     color_list, trsp_list = colorMap(minDistList, 'forest', ['lime', 'seagreen', 'forestgreen'])
     Mfilt=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        Mfilt[i,:] = low_pass_filter(M[i,:], 4, fs, 5*f)
+        Mfilt[i,:] = low_pass_filter(M[i,:], 4, fs, 15*f)
     dco = 25e-9
     Vc = 1 / 6 * np.pi * dco ** 3
     mu = Ms * Vc
@@ -221,7 +221,7 @@ if __name__ == '__main__':
     color_list, trsp_list = colorMap(minDistList, 'red-brown', ['lightcoral', 'red', 'firebrick'] )
     Mfilt=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        Mfilt[i,:] = low_pass_filter(Ms*M[i,:], 4, fs, 5*f)
+        Mfilt[i,:] = low_pass_filter(Ms*M[i,:], 4, fs, 15*f)
     dco = 30e-9
     Vc = 1 / 6 * np.pi * dco ** 3
     mu = Ms * Vc
@@ -360,7 +360,7 @@ if __name__ == '__main__':
     color_list, trsp_list = colorMap(minDistList, 'sunset', ['gold', 'orange', 'darkorange'])
     Mfilt=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        Mfilt[i,:] = low_pass_filter(Ms*M[i,:], 4, fs, 5*f)
+        Mfilt[i,:] = low_pass_filter(Ms*M[i,:], 4, fs, 15*f)
     dco = 35e-9
     Vc = 1 / 6 * np.pi * dco ** 3
     mu = Ms * Vc
@@ -496,20 +496,35 @@ if __name__ == '__main__':
 
     # size 35 nm
     Hd = genfromtxt('dipoleIntractionEffect/data/Hdd_size35.csv', delimiter=',')
-    minDistList = np.array([60, 75, 100, 150, 200, 250])
-    color_list, trsp_list = colorMap(minDistList, 'sunset', ['gold', 'orange', 'darkorange'])
+    color_list1, trsp_list = colorMap(minDistList, 'forest', ['lime', 'seagreen', 'forestgreen'])
+    color_list2, trsp_list = colorMap(minDistList, 'sunset', ['gold', 'orange', 'darkorange'])
 
-    fig = initialize_figure()
-    gs = GridSpec(1, 1, figure=fig)
+    fig = initialize_figure(figsize=(18,6))
+    gs = GridSpec(1, 2, figure=fig, width_ratios=[1, 1])
 
-    # size35: M-t
+    # size35: M & Hdd - t 
     ax = fig.add_subplot(gs[0, 0])
-    for i in range(M.shape[0]):
-        ax.plot(t* 1e3, Hd[i] * 1e-3, color=color_list[i], alpha=trsp_list[i], linewidth=3.0, label=fr'$min distance$ {minDistList[i]} nm')
-    ax.set_ylabel('Mz (kA/m)', weight='bold', fontsize=30)
+    ax1 = ax.twinx()
+    for i in range(Hd.shape[0]):
+        ax.plot(t* 1e3, Hd[i] * 1e-3, color=color_list1[i], alpha=trsp_list[i], linewidth=3.0, label=fr'$d=$ {minDistList[i]} nm')
+        ax1.plot(t* 1e3, M[i] * 1e-3, color=color_list2[i], alpha=trsp_list[i], linewidth=3.0)
+    ax.set_ylabel('Hdd (kA/m)', weight='bold', fontsize=30)
+    ax1.set_ylabel('Mz (kA/m)', weight='bold', fontsize=30)
     ax.xaxis.set_tick_params(labelsize=30)
     ax.yaxis.set_tick_params(labelsize=30)
+    ax1.xaxis.set_tick_params(labelsize=30)
+    ax1.yaxis.set_tick_params(labelsize=30)
     set_spines_grid(ax)
+    set_spines_grid(ax1)
+
+    # size35: min distance for legends
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax2.axis('off') 
+    lines, labels = ax.get_legend_handles_labels() # H (ax1) as the first in legend
+    legend = ax2.legend(lines, labels, loc='center', prop={'size': 30})
+    set_legend_properties(legend)
+    set_spines_grid(ax2)   
+
     plt.tight_layout()
     plt.savefig('dipoleIntractionEffect/figures/size35-Hd.png')
 
