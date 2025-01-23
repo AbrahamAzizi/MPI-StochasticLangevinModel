@@ -1,76 +1,82 @@
 import numpy as np
+import pickle
 from init import *
-from utlis import *
-import csv
+from utils import *
 
 if __name__ == '__main__':
 
-    params = Params()  # create a parameter instance
+    data= Data()  # create a parameter instance
+    params = Params(data)
+    lent = params.lent
+    
+    # #first data set: magnetic particle core size
+    # dcore_list = np.array([20, 30, 40, 50, 60])*1e-9
+    # dhyd_list = dcore_list + 10e-9
+    # M = np.zeros( (len(dcore_list), lent) )
+    # N = np.zeros( (len(dcore_list), lent) )
+    # sigH = np.zeros( (len(dcore_list), lent) )
+    # for i in range(len(dcore_list)):
+    #     print(f"\ndcore={dcore_list[i]} ----- start", flush=True)
+    #     data.dCore = dcore_list[i]
+    #     data.dHyd = dhyd_list[i]
+    #     M[i, :], N[i, :], sigH[i,:] = MPI_Langevin_std_core(data)
+    #     print(f"\ndcore={dcore_list[i]} ----- completed.")
+    # np.savetxt('MNP-properties/data/Core_M.csv', M, delimiter=',', comments='')
+    # np.savetxt('MNP-properties/data/Core_N.csv', N, delimiter=',', comments='')
+    # np.savetxt('MNP-properties/data/Core_sigH.csv', sigH, delimiter=',', comments='')
 
-    #first data set: magnetic particle core size
-    d_core_list = np.array([20, 30, 40, 50, 60])
-    d_hyd_list = d_core_list + 10
-    Mz = []
-    for i, d in enumerate(zip(d_core_list, d_hyd_list)):
-        params.set_params(dCore = d[0]*1e-9, dHyd = d[1]*1e-9)
-        init = params.get_params()
-        M, _ = CombinedNeelBrown(init_data = init)
-        Mz.append(M)
-        print('\r', 'dcore_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(d_core_list)-1))
-    print()
-    with open('effectOfDcore.csv', 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerows(Mz)
+    # #second data set: magnetic particle hydrodynamic size
+    # dco = 30e-9
+    # data.dCore = dco
+    # dhyd_list = np.array([30, 35, 40, 45, 55, 60])*1e-9
+    # M = np.zeros( (len(dhyd_list), lent) )
+    # N = np.zeros( (len(dhyd_list), lent) )
+    # sigH = np.zeros( (len(dhyd_list), lent) )
+    # for i in range(len(dhyd_list)):
+    #     print(f"\ndhyd={dhyd_list[i]} ----- start", flush=True)
+    #     data.dHyd = dhyd_list[i]
+    #     M[i, :], N[i, :], sigH[i,:] = MPI_Langevin_std_core(data)
+    #     print(f"\ndhyd={dhyd_list[i]} ----- completed.")
+    # np.savetxt('MNP-properties/data/Hyd_M.csv', M, delimiter=',', comments='')
+    # np.savetxt('MNP-properties/data/Hyd_N.csv', N, delimiter=',', comments='')
+    # np.savetxt('MNP-properties/data/Hyd_sigH.csv', sigH, delimiter=',', comments='')
 
-    #second data set: magnetic particle hydrodynamic size
-    d_core = 30e-9
-    params.set_params(dCore = d_core)
-    d_hyd_list = np.array([30, 35, 40, 45, 55, 60])
-    Mz = []
-    for i, d_hyd in enumerate(d_hyd_list):
-        params.set_params(dHyd = d_hyd*1e-9)
-        init = params.get_params()
-        M, _ = CombinedNeelBrown(init_data = init)
-        Mz.append(M)
-        print('\r', 'dhyd_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(d_hyd_list)-1))
-    print()
-    with open('effectOfDhydrodynamic.csv', 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerows(Mz)
-
-    # third data set: magnetic particle anisotropy
-    d_core = 30e-9
-    d_hyd = 40e-9
-    params.set_params(dCore = d_core, dHyd = d_hyd)
-    ka_list = np.array([3, 5, 8, 10, 15])
-    Mz=[]
-    for i, ka in enumerate(ka_list):
-        params.set_params(kAnis = ka*1e3)
-        init = params.get_params()
-        M, _ = CombinedNeelBrown(init_data = init)
-        Mz.append(M)
-        print('\r', 'ka_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(ka_list)-1))
-    print()
-    with open('effectOfAnisotropy.csv', 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerows(Mz)
+    # # third data set: magnetic particle anisotropy
+    # dco = 30e-9
+    # data.dCore = dco
+    # dhyd = 40e-9
+    # data.dHyd = dhyd
+    # ka_list = np.array([3, 5, 8, 10, 15])*1e3
+    # M = np.zeros( (len(ka_list), lent) )
+    # N = np.zeros( (len(ka_list), lent) )
+    # sigH = np.zeros( (len(ka_list), lent) )
+    # for i in range(len(ka_list)):
+    #     print(f"\nka={ka_list[i]} ----- start", flush=True)
+    #     data.kAnis = ka_list[i]
+    #     M[i, :], N[i, :], sigH[i,:] = MPI_Langevin_std_core(data)
+    #     print(f"\nka={ka_list[i]} ----- completed.")
+    # np.savetxt('MNP-properties/data/Anis_M.csv', M, delimiter=',', comments='')
+    # np.savetxt('MNP-properties/data/Anis_N.csv', N, delimiter=',', comments='')
+    # np.savetxt('MNP-properties/data/Anis_sigH.csv', sigH, delimiter=',', comments='')
 
     # forth data set: magnetic particle saturation magnetization
-    d_core = 30e-9
-    d_hyd = 40e-9
+    dco = 30e-9
+    data.dCore = dco
+    dhyd = 40e-9
+    data.dHyd = dhyd
     ka = 3e3
-    params.set_params(dCore = d_core, dHyd = d_hyd, kAnis = ka)
-    Ms_list = np.array([50, 100, 200, 300, 400, 500])
-    Mz=[]
-    for i, ms in enumerate(Ms_list):
-        params.set_params(Ms = ms*1e3)
-        init = params.get_params()
-        M, _ = CombinedNeelBrown(init_data= init)
-        Mz.append(M)
-        print('\r', 'Ms_list: ' + "." * 10 + " ", end=str(i)+'/'+str(len(Ms_list)-1))
-    print()
-    with open('effectOfMagnetization.csv', 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerows(Mz)
+    data.kAnis = ka
+    Ms_list = np.array([50, 100, 200, 300, 400, 500])*1e3
+    M = np.zeros( (len(Ms_list), lent) )
+    N = np.zeros( (len(Ms_list), lent) )
+    sigH = np.zeros( (len(Ms_list), lent) )
+    for i in range(len(Ms_list)):
+        print(f"\nMs={Ms_list[i]} ----- start", flush=True)
+        data.Ms = Ms_list[i]
+        M[i, :], N[i, :], sigH[i,:] = MPI_Langevin_std_core(data)
+        print(f"\nMs={Ms_list[i]} ----- completed.")
+    np.savetxt('MNP-properties/data/Satu_M.csv', M, delimiter=',', comments='')
+    np.savetxt('MNP-properties/data/Satu_N.csv', N, delimiter=',', comments='')
+    np.savetxt('MNP-properties/data/Satu_sigH.csv', sigH, delimiter=',', comments='')
 
 

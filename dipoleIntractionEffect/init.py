@@ -3,7 +3,7 @@ import numpy as np
 class Data:
     def __init__(self, kB=1.381e-23, gamGyro=1.76e11, Ms=4.8e5, dCore=30e-9, dHyd=40e-9,
                     temp=300, alpha=1, kAnis=3e3, visc=1e-3, filedAmpl=20e-3,
-                    nPeriod=3, fieldFreq=25e3, rsol=20, nParticle=100, minParticleDist=25):
+                    nPeriod=3, fieldFreq=25e3, rsol=20, nParticle=1000, minParticleDist=25):
         self.kB = kB
         self.gamGyro = gamGyro
         self.Ms = Ms

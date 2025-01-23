@@ -1,5 +1,5 @@
 from init import *
-from utlis import psf_xiH, fwhm_and_psf_peaks, Ht, fwhm, ftsignal
+from utlis import psf_xiH, fwhm_and_psf_peaks, Ht, fwhm, ftSignal, NeelRelaxation
 import numpy as np
 from numpy import genfromtxt
 from scipy.signal import savgol_filter
@@ -73,39 +73,39 @@ def plot_M_H(He, m, Ms, color_list, trsp_list, figName):
     plt.tight_layout()
     plt.savefig(f'FieldEffect/figures/{figName}_M_H.png')
 
-def plot_Signal(xiH, sigH, m, n, xi0, lz, sig, dt, f, lent, pz, std, cycs, figName):
+def plot_Signal(xiH, sigH, m, n, xi0, lz, sig, dt, f, lent, pz, cycs, figName):
     _, ax = initialize_figure(figsize=(12,6))
     sf = np.zeros((len(fieldAml_list), lent-1))
-    for i in range(len(m)):
-        st, sf[i] = ftsignal(xiH[i], sigH[i], m[i], n[i], xi0[i], lz[i], sig, dt, f, num, mu, lent, pz, cycs)
+    for i in range(len(fieldAml_list)):
+        st, sf[i] = ftSignal(xiH[i], sigH[i], m[i], n[i], xi0[i], lz, sig, dt, f, lent, pz, num, mu, cycs)
         ax.plot(t[:-1]*1e3,st, color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('V(v)', weight='bold', fontsize=30)
+    ax.set_ylabel('V/m', weight='bold', fontsize=30)
     ax.set_xlabel('t(ms)', weight='bold', fontsize=30)
     ax.set_xlim(.01, .11)
     set_spines_grid(ax)
     plt.tight_layout()
     plt.savefig(f'FieldEffect/figures/{figName}_Signals.png')
     #plot_Harmonics
-    freqs = np.fft.fftfreq(lent, dt)
+    freqs = np.fft.fftfreq(lent-1, dt)
     N = len(freqs) // 2
     x = np.fft.fftshift(freqs / f)[N:]
-    snr=[]
+    snr = []
     _, ax = initialize_figure(figsize=(12,6))
     for i in range(len(fieldAml_list)):
-        x_int = np.array([2*k+1 for k in range(1, 21)])
-        y_int = [sf[i, np.argmin(np.abs(x - j))] for j in x_int]
-        snr.append(20*np.log10(abs(np.where(std == 0, 0, sf[i, 3]/std))))
-        ax.plot(x_int, y_int, color=color_list[i], marker='D', markersize = 15, alpha=trsp_list[i], linewidth=3.0)
-    ax.set_xlim(2, 20)
-    ax.set_xticks(range(3, 20, 2))  # Set x-ticks every 2 units
-    ax.set_ylabel(r'Magnitude(V)', weight='bold', fontsize=30)
+        std = m.std()
+        tmp = max(sf[i])/std
+        snr.append(20*np.log10(abs(np.where(std == 0, 0, tmp))))
+        ax.plot(x, sf[i, N:], color=color_list[i], marker='D', markersize = 15, alpha=trsp_list[i], linewidth=3.0)
+    ax.set_xlim(2, 12)
+    ax.set_xticks(range(3, 12, 2))  # Set x-ticks every 2 units
+    ax.set_ylabel(r'Magnitude(V/m)', weight='bold', fontsize=30)
     ax.set_xlabel('Harmonics Number', weight='bold', fontsize=30)
     set_spines_grid(ax)
     plt.tight_layout()
     plt.savefig(f'FieldEffect/figures/{figName}_Harmonics.png')
     #print snr
     print(f'SNR for {figName} nm:')
-    for i in range(len(m)):
+    for i in range(len(fieldAml_list)):
         print(f'SNR for field ampl {fieldAml_list[i]} mT = ', snr[i])
     print(50*'-')
 
@@ -146,6 +146,25 @@ def plot_FWHM(xiH, sigH, m, period, figName):
     plt.tight_layout()
     plt.savefig(f'FieldEffect/figures/{figName}_fwhm.png')
 
+def plot_snr_fwhm(fieldAmpl, snr, fwhm, figName):
+    fig, ax1 = initialize_figure(figsize=(12,6))
+
+    # Plotting SNR on the left y-axis
+    ax1.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax1.set_ylabel('SNR(dB)', color='tab:blue', weight='bold', fontsize=30)
+    ax1.plot(fieldAmpl, snr, marker='o', color='tab:blue', markersize = 15, linewidth=3.0)
+    ax1.tick_params(axis='y', labelcolor='tab:blue')
+    set_spines_grid(ax1)
+    # Plotting FWHM on the right y-axis
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('FWHM', color='tab:red', weight='bold', fontsize=30)
+    ax2.plot(fieldAmpl, fwhm, marker='s', color='tab:red', markersize = 15, linewidth=3.0)
+    ax2.tick_params(axis='y', labelcolor='tab:red')
+    set_spines_grid(ax2)
+    # Titles and grid
+    fig.tight_layout()
+    plt.savefig(f'FieldEffect/figures/{figName}_snr_fwhm.png')
+
 def print_fwhm(xiH, sigH, m, figName):
     print(f'fwhm for {figName} nm:')
     for i, field in enumerate(fieldAml_list):  
@@ -164,7 +183,7 @@ if __name__ == '__main__':
     num = data.nParticle
     kT = data.kB*data.temp
     cycs = data.nPeriod
-    data.rsol = 100
+    data.rsol = 5000
     rsol = data.rsol
     fs = rsol*2*f
     dt = 1/fs
@@ -190,7 +209,6 @@ if __name__ == '__main__':
         # read data
         figName = figName_list[i]
         dco = dco_list[i]*1e-9
-        dhyd = dco+10e-9
         color = colorName_list[i]
         colorVar = colorVar_list[i]
         m = genfromtxt(f'FieldEffect/data/{figName}_M.csv', delimiter=',')
@@ -207,22 +225,17 @@ if __name__ == '__main__':
 
         # signals and Harmonics
         Vc = 1 / 6 * np.pi * dco ** 3
-        Vh = 1 / 6 * np.pi * dhyd ** 3
         sig = ka*Vc/kT
         gz = 1 # 1T = * 795.7747 A/m
-        pz = 20e-3 * 795.7747 / 1.59  # A/m/A   1T = 795.7747 A/m, I = 1.59 A
+        pz = 20e-3 # 1mT = 795.7747 A/m, I = 1.59 A
         mu = Ms * Vc
-        t0 = mu / (2 * data.gamGyro * kT) * (1 + data.alpha ** 2) / data.alpha
-        tB = 3 * data.visc * Vh / kT
-        std = t0+tB
         xiH = np.zeros((len(fieldAml_list), len(t)))
         xi0 = np.zeros(len(fieldAml_list))
-        lz = np.zeros(len(fieldAml_list))
-        for i, a in enumerate(fieldAml_list):
-            lz[i] = a*1e-3/gz
-            xi0[i] = mu * a*1e-3 / (2*kT)
-            xiH[i,:] = np.array([xi0[i] * Ht(f,j*dt) for j in range(lent)])
-        plot_Signal(xiH, sigH, m, n, xi0, lz, sig, dt, f, lent, pz, std, cycs, figName)
+        lz = 1e-3
+        for j, a in enumerate(fieldAml_list):
+            xi0[j] = mu * a*1e-3 / (2*kT)
+            xiH[j,:] = np.array([xi0[j] * Ht(f,k*dt) for k in range(lent)])
+        plot_Signal(xiH, sigH, m, n, xi0, lz, sig, dt, f, lent, pz, cycs, figName)
 
         # PSF
         plot_PSF(xiH, sigH, m, color_list, trsp_list, figName)
@@ -231,8 +244,37 @@ if __name__ == '__main__':
         period = 2
         plot_FWHM(xiH, sigH, m, period, figName)
 
+        # Plot for SNR 25 and FWHM 25
+        sf = np.zeros((len(fieldAml_list), lent-1))
+        for i in range(len(fieldAml_list)):
+            _, sf[i] = ftSignal(xiH[i], sigH[i], m[i], n[i], xi0[i], lz, sig, dt, f, lent, pz, num, mu, cycs)   
+        snr_list = []
+        fwhm_list = []
+        for i in range(len(fieldAml_list)):
+            std = m.std()
+            tmp = max(sf[i])/std
+            snr_list.append(20*np.log10(abs(np.where(std == 0, 0, tmp))))
+            tmp = fwhm(xiH[i], sigH[i], m[i], 2)
+            fwhm_list.append(tmp)
+        plot_snr_fwhm(fieldAml_list, snr_list, fwhm_list, figName)
+        
         # FWHM data
         print_fwhm(xiH, sigH, m, figName)
+
+        # print Neel relaxation
+        ka = data.kAnis
+        gam = data.gamGyro
+        al = data.alpha
+        Vc = 1 / 6 * np.pi * dco ** 3
+        sig = ka * Vc / kT
+        t0 = mu / (2 * gam * kT) * (1 + al ** 2) / al
+        print(f'Neel relaxation for {figName} s:')
+        for i, field in enumerate(fieldAml_list):  
+            tn, hac = NeelRelaxation(sig, t0, ka, Ms, xi0[i], field*1e-3)
+            print(f'tn for field ampl {field} (s) = ', tn)
+            print(f'hac for field ampl {field} = ', hac)
+            print(f'sigma for field ampl {field} = ', sig)
+        print(50*'-')
 
 
 

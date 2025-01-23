@@ -1,12 +1,14 @@
 from init import *
-from utlis import low_pass_filter, peaksInit, peaks_analysis
+from utils import psf_xiH, fwhm_and_psf_peaks, Ht, fwhm, ftSignal, low_pass_filter, fourier_derivative
 import numpy as np
 from numpy import genfromtxt
+from scipy.signal import savgol_filter
+from scipy.signal.windows import kaiser
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import rcParams
+from matplotlib.colors import LinearSegmentedColormap
 import seaborn as sns
-import csv
+
 
 def initialize_figure(figsize=(18,6), dpi=300, font_scale=2):
     sns.set_context("notebook", font_scale=font_scale, )
@@ -16,6 +18,7 @@ def initialize_figure(figsize=(18,6), dpi=300, font_scale=2):
     ax.xaxis.set_tick_params(labelsize=30)
     ax.yaxis.set_tick_params(labelsize=30)
     return fig, ax
+
 def set_spines_grid(ax):
     ax.grid(False)
     for spine in ax.spines.values():
@@ -34,495 +37,400 @@ def colorMap(lenlist, name, colors):
     trsp_list = np.linspace(0.5, 1, len(lenlist))
     return color_list, trsp_list
 
+def plot_M_t(t, He, m, Ms, color_list, trsp_list, proplist, figName):
+    _, ax1 = initialize_figure()
+    ax1.plot(t * 1e3, He * 1e3, color='b', linewidth=3.0, label=r'$\mu_0 H$ (mT)')
+    ax1.set_xlabel('Time (ms)', weight='bold', fontsize=20)
+    ax1.set_ylabel(r'$\mu_0$H (mT)', weight='bold', fontsize=20)
+    ax1.xaxis.set_tick_params(labelsize=20)
+    ax1.yaxis.set_tick_params(labelsize=20)
+    ax1.set_xlim(.01, .11)
+    set_spines_grid(ax1)
+    ax2 = ax1.twinx()
+    ax2.xaxis.set_tick_params(labelsize=20)
+    ax2.yaxis.set_tick_params(labelsize=20)
+    for i in range(m.shape[0]):
+        ax2.plot(t * 1e3, Ms*m[i, :] * 1e-3 , '--', color=color_list[i], alpha=trsp_list[i], linewidth=3.0, label=f'{figName}: {proplist[i]} nm')
+    ax2.set_ylabel('Mz (kA/m)', weight='bold', fontsize=20)
+    ax2.set_xlim(.01, .11)
+    set_spines_grid(ax2)
+    lines, labels = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    legend = ax1.legend(lines + lines2, labels + labels2, loc='upper left', bbox_to_anchor=(1.12, 1))
+    set_legend_properties(legend)
+    plt.tight_layout()
+    plt.savefig(f'MNP-properties/figures/{figName}_M_t.png')
+
+def plot_M_H(He, m, Ms, color_list, trsp_list, figName):
+    _, ax = initialize_figure(figsize=(12,6))
+    winlen = (np.where(He == np.min(He))[0][0] - np.where(He == np.max(He))[0][0])
+    for i in range(len(m)):
+        ax.plot(He[2*winlen:4*winlen]*1e3, Ms*m[i, 2*winlen:4*winlen]*1e-3 , color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
+    ax.set_ylabel('Mz (kA/m)', weight='bold', fontsize=30)
+    ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
+    set_spines_grid(ax)
+    plt.tight_layout()
+    plt.savefig(f'MNP-properties/figures/{figName}_M_H.png')
+
+def plot_Signal(xiH, sigHlow, mlow, nlow, xi0, lz, sig, dt, f, lent, pz, num, mu, cycs, proplist, figName):
+    _, ax = initialize_figure(figsize=(12,6))
+    sf = np.zeros((len(proplist), lent-1))
+    for i in range(len(proplist)):
+        st, sf[i] = ftSignal(xiH[i], sigHlow[i], mlow[i], nlow[i], xi0[i], lz, sig, dt, f, lent, pz, num, mu[i], cycs)
+        ax.plot(t[:-1]*1e3,st, color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
+    ax.set_ylabel('V/m', weight='bold', fontsize=30)
+    ax.set_xlabel('t(ms)', weight='bold', fontsize=30)
+    ax.set_xlim(.02, .12)
+    #ax.set_ylim(-2.5e-5, 2.5e-5)
+    set_spines_grid(ax)
+    plt.tight_layout()
+    plt.savefig(f'MNP-properties/figures/{figName}_Signals.png')
+    #plot_Harmonics
+    freqs = np.fft.fftfreq(lent-1, dt)
+    N = len(freqs) // 2
+    x = np.fft.fftshift(freqs / f)[N:]
+    snr = []
+    _, ax = initialize_figure(figsize=(12,6))
+    for i in range(len(proplist)):
+        std = m.std()
+        tmp = max(sf[i])/std
+        snr.append(20*np.log10(abs(np.where(std == 0, 0, tmp))))
+        ax.plot(x, sf[i, N:], color=color_list[i], marker='D', markersize = 15, alpha=trsp_list[i], linewidth=3.0)
+    ax.set_xlim(2, 12)
+    ax.set_xticks(range(3, 12, 2))  # Set x-ticks every 2 units
+    ax.set_ylabel(r'Magnitude(V/m)', weight='bold', fontsize=30)
+    ax.set_xlabel('Harmonics Number', weight='bold', fontsize=30)
+    set_spines_grid(ax)
+    plt.tight_layout()
+    plt.savefig(f'MNP-properties/figures/{figName}_Harmonics.png')
+    #print snr
+    print(f'SNR for {figName}:')
+    for i in range(len(proplist)):
+        print(f'SNR for {figName} {proplist[i]} = ', snr[i])
+    print(50*'-')
+
+def plot_PSF(xiH, sigHlow, mlow, proplist, dt, color_list, trsp_list, figName):
+    _, ax = initialize_figure(figsize=(12,6))
+    for i in range(len(proplist)):
+        dm = fourier_derivative(mlow[i], dt)
+        dxi = fourier_derivative((xiH[i]+sigHlow[i]), dt)
+        dmdxi = dm/dxi
+        winlen = (np.where(xiH[i] == np.min(xiH[i]))[0][0] - np.where(xiH[i] == np.max(xiH[i]))[0][0])
+        wincnt = int(len(xiH[i])/winlen)
+        for j in range(wincnt):
+            tmp = dmdxi[j*winlen : (j+1)*winlen]
+            dmdxi[j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen,14)*tmp, 500, 1, mode='nearest')
+        ax.plot(xiH[i, 2*winlen:4*winlen]*1e3, dmdxi[2*winlen:4*winlen], color=color_list[i], alpha=trsp_list[i], linewidth=3.0) 
+    ax.set_ylabel(r'dm/d$\xi$', weight='bold', fontsize=30)
+    ax.set_xlabel(r'$\xi^{\prime}$', weight='bold', fontsize=30)
+    #ax.set_xlim(-5000, 5000)
+    ax.set_ylim(0, )
+    set_spines_grid(ax)
+    plt.tight_layout()
+    plt.savefig(f'MNP-properties/figures/{figName}_psf.png')
+
+def plot_FWHM(xiH, sigHlow, mlow, period, figName):
+
+    leftxiH, leftpsf, rightxiH, rightpsf = psf_xiH(xiH[-2], sigHlow[-2], mlow[-2], period)
+    resl = fwhm_and_psf_peaks(leftxiH, leftpsf)
+    resr = fwhm_and_psf_peaks(rightxiH, rightpsf)
+
+    _, ax = initialize_figure(figsize=(12, 6))
+    ax.plot(leftxiH[:-1] * 1e3,  leftpsf, linewidth=3.0)
+    ax.plot(resl['peakxiH'] * 1e3, resl['peakpsf'], 'rp', markersize=10, linewidth=3.0)
+    ax.axvspan(resl['fwhm_left'] * 1e3, resl['fwhm_right'] * 1e3, facecolor='c', alpha=0.1, linewidth=3.0)
+    ax.plot(rightxiH[:-1] * 1e3, rightpsf, linewidth=3.0)
+    ax.plot(resr['peakxiH'] * 1e3, resr['peakpsf'], 'rp', markersize=10, linewidth=3.0)
+    ax.axvspan(resl['fwhm_left'] * 1e3, resr['fwhm_right'] * 1e3, facecolor='c', alpha=0.1, linewidth=3.0)
+    ax.set_ylabel(r'dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
+    ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
+    set_spines_grid(ax)
+    plt.tight_layout()
+    plt.savefig(f'MNP-properties/figures/{figName}_fwhm.png')
+
+def plot_snr_fwhm(fieldAmpl, snr, fwhm, figName):
+    fig, ax1 = initialize_figure(figsize=(12,6))
+
+    # Plotting SNR on the left y-axis
+    ax1.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
+    ax1.set_ylabel('SNR(dB)', color='tab:blue', weight='bold', fontsize=30)
+    ax1.plot(fieldAmpl, snr, marker='o', color='tab:blue', markersize = 15, linewidth=3.0)
+    ax1.tick_params(axis='y', labelcolor='tab:blue')
+    set_spines_grid(ax1)
+    # Plotting FWHM on the right y-axis
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('FWHM', color='tab:red', weight='bold', fontsize=30)
+    ax2.plot(fieldAmpl, fwhm, marker='s', color='tab:red', markersize = 15, linewidth=3.0)
+    ax2.tick_params(axis='y', labelcolor='tab:red')
+    set_spines_grid(ax2)
+    # Titles and grid
+    fig.tight_layout()
+    plt.savefig(f'MNP-properties/figures/{figName}_snr_fwhm.png')
+
+def print_fwhm(xiH, sigHlow, mlow, proplist, figName):
+    print(f'fwhm for {figName}:')
+    for i, field in enumerate(proplist):  
+        res = fwhm(xiH[i], sigHlow[i], mlow[i], 2)
+        print(f'fwhm for {figName} {field} = ', res)
+    print(50*'-')
+
 
 if __name__ == '__main__':
-    params = Params()
+    print(50*'-')
+    data = Data()
+    params = Params(data)
+    
+    freq = data.fieldFreq
+    cycs = data.nPeriod
+    num = data.nParticle
+    lent = params.lent
+    t = params.tu/freq
+    He = data.fieldAmpl*np.cos(2*np.pi*freq*t)
 
-    freq = params.f_excitation
-    d_core_list = np.array([20, 30, 40, 50, 60])
-    color_list, trsp_list = colorMap(d_core_list, 'forest', ['lime', 'seagreen', 'forestgreen'] )
-    d_hyd_list = d_core_list + 10
-    Ms = 3e5
-    t = []
-    He = []
-    for i, d in enumerate(zip(d_core_list, d_hyd_list)):
-        params.set_params(dCore = d[0]*1e-9, dHyd = d[1]*1e-9)
-        init = params.get_params()
-        t.append(params.tu / freq)
-        He.append(params.fieldB * np.cos(2 * np.pi * params.tu))
+    # Core size --------------------------------------------------
+    Ms = data.Ms
+    dco_list = np.array([20, 30, 40, 50, 60])
+    color_list, trsp_list = colorMap(dco_list, 'forest', ['lime', 'seagreen', 'forestgreen'])
+    m = genfromtxt('MNP-properties/data/Core_M.csv', delimiter=',')
+    n = genfromtxt('MNP-properties/data/Core_N.csv', delimiter=',')
+    sigH = genfromtxt('MNP-properties/data/Core_sigH.csv', delimiter=',')
+    mlow = np.zeros((len(m), lent))
+    nlow = np.zeros((len(n), lent))
+    sigHlow = np.zeros((len(sigH), lent))
+    for i in range(len(m)):
+        mlow[i]= low_pass_filter(m[i], 4, 400*freq, 5*freq)
+        nlow[i]= low_pass_filter(n[i], 4, 400*freq, 5*freq)
+        sigHlow[i]= low_pass_filter(sigH[i], 4, 400*freq, 5*freq)
+
+    # M_t
+    plot_M_t(t, He, mlow, Ms, color_list, trsp_list, dco_list, "Core Size")
+
+    # M_H
+    plot_M_H(He, mlow, Ms, color_list, trsp_list, "Core Size")
+
+    # signals and Harmonics
+    gz = 1 # 1T = * 795.7747 A/m
+    pz = 20e-3 # 1mT = 795.7747 A/m, I = 1.59 A
+    dt = t[2]-t[1]
+    xiH = np.zeros((len(dco_list), lent))
+    xi0 = np.zeros(len(dco_list))
+    mulist = np.zeros(len(dco_list))
+    lz = 1e-3
+    for j, d in enumerate(dco_list):
+        data.dCore = d*1e-9
+        Params(data)
+        sig = params.sig
+        mulist[j] = params.mu
+        xi0[j] = params.xi0
+        xiH[j,:] = xi0[j] * Ht(freq, t)
+
+    plot_Signal(xiH, sigHlow, mlow, nlow, xi0, lz, sig, dt, freq, lent, pz, num, mulist, cycs, dco_list, "Core Size")
     
-    # Magnetization in time for core size
-    with open('MNP-properties/effectOfDcore.csv', 'r') as f:
-        reader = csv.reader(f)
-        M = [list(map(float, row)) for row in reader]
-    M_lowPass=[]
-    for i in range(len(M)):
-        M_lowPass.append(low_pass_filter(np.array(M[i]), 1, 10000*freq, 3*freq))
+    # PSF
+    plot_PSF(xiH, sigHlow, mlow, dco_list, dt, color_list, trsp_list, "Core Size")
+
+    # PSF + FWHM for test
+    period = 2
+    plot_FWHM(xiH, sigHlow, mlow, period, "Core Size")
+
+    # Plot SNR and FWHM
+    sf = np.zeros((len(dco_list), lent-1))
+    for i in range(len(dco_list)):
+        _, sf[i] = ftSignal(xiH[i], sigHlow[i], mlow[i], nlow[i], xi0[i], lz, sig, dt, freq, lent, pz, num, mulist[i], cycs)   
+    snr_list = []
+    fwhm_list = []
+    for i in range(len(dco_list)):
+        std = m.std()
+        tmp = max(sf[i])/std
+        snr_list.append(20*np.log10(abs(np.where(std == 0, 0, tmp))))
+        tmp = fwhm(xiH[i], sigHlow[i], mlow[i], 2)
+        fwhm_list.append(tmp)
+    plot_snr_fwhm(dco_list, snr_list, fwhm_list, "Core Size")
     
-    fig, ax1 = initialize_figure()
-    for i in range(len(M_lowPass)):
-        ax1.plot(t[i] * 1e3, He[i] * 1e3, 'black', linewidth=3.0)
-    ax1.set_xlabel('Time (ms)', weight='bold', fontsize=20)
-    ax1.set_ylabel('$\mu_0$H (mT)', weight='bold', fontsize=20)
-    ax1.xaxis.set_tick_params(labelsize=20)
-    ax1.yaxis.set_tick_params(labelsize=20)
-    ax1.plot([], [], 'black', linewidth=3.0, label='$\mu_0 H$ (mT)')
-    set_spines_grid(ax1)
-    ax2 = ax1.twinx()
-    ax2.xaxis.set_tick_params(labelsize=20)
-    ax2.yaxis.set_tick_params(labelsize=20)
-    for i in range(len(M_lowPass)):
-        ax2.plot(t[i] * 1e3, Ms*M_lowPass[i] * 1e-3 ,linewidth=3.0, color=color_list[i], alpha=trsp_list[i], label=f'$D_c$= {d_core_list[i]} nm')
-    ax2.set_ylabel('Mz (kA/m)', weight='bold', fontsize=20)
-    ax2.set_xlim(.02, .12)
-    set_spines_grid(ax2)
-    lines, labels = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    legend = ax1.legend(lines + lines2, labels + labels2, loc='upper left', bbox_to_anchor=(1.12, 1))
-    set_legend_properties(legend)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/core-magnetization-time.png')
+    # FWHM data
+    print_fwhm(xiH, sigHlow, mlow, dco_list, "Core Size")
+
+    # Hyd size --------------------------------------------------
+    Ms = data.Ms
+    dhyd_list = np.array([30, 35, 40, 45, 55, 60])
+    color_list, trsp_list = colorMap(dhyd_list, 'sunset', ['gold', 'orange', 'darkorange'])
+    m = genfromtxt('MNP-properties/data/Hyd_M.csv', delimiter=',')
+    n = genfromtxt('MNP-properties/data/Hyd_N.csv', delimiter=',')
+    sigH = genfromtxt('MNP-properties/data/Hyd_sigH.csv', delimiter=',')
+    mlow = np.zeros((len(m), lent))
+    nlow = np.zeros((len(n), lent))
+    sigHlow = np.zeros((len(sigH), lent))
+    for i in range(len(m)):
+        mlow[i]= low_pass_filter(m[i], 4, 400*freq, 5*freq)
+        nlow[i]= low_pass_filter(n[i], 4, 400*freq, 5*freq)
+        sigHlow[i]= low_pass_filter(sigH[i], 4, 400*freq, 5*freq)
+
+    # M_t
+    plot_M_t(t, He, mlow, Ms, color_list, trsp_list, dhyd_list, "Hyd Size")
+
+    # M_H
+    plot_M_H(He, mlow, Ms, color_list, trsp_list, "Hyd Size")
+
+    # signals and Harmonics
+    gz = 1 # 1T = * 795.7747 A/m
+    pz = 20e-3 # 1mT = 795.7747 A/m, I = 1.59 A
+    xiH = np.zeros((len(dhyd_list), lent))
+    xi0 = np.zeros(len(dhyd_list))
+    mulist = np.zeros(len(dhyd_list))
+    lz = 1e-3
+    for j, d in enumerate(dhyd_list):
+        data.dHyd = d*1e-9
+        Params(data)
+        sig = params.sig
+        mulist[j] = params.mu
+        xi0[j] = params.xi0
+        xiH[j,:] = xi0[j] * Ht(freq, t)
+
+    plot_Signal(xiH, sigHlow, mlow, nlow, xi0, lz, sig, dt, freq, lent, pz, num, mulist, cycs, dco_list, "Hyd Size")
     
-    # Magnetization curve for core size
-    fig, ax = initialize_figure(figsize=(12,6))
-    for i in range(len(M)):
-        l = len(M[i])
-        k = int(l / params.nPeriod)
-        ax.plot(He[i][-k:]* 1e3, Ms*M_lowPass[i][-k:] * 1e-3 , color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('Mz (kA/m)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/core-magnetization-curve.png')
+    # PSF
+    plot_PSF(xiH, sigHlow, mlow, dco_list, dt, color_list, trsp_list, "Hyd Size")
+
+    # PSF + FWHM for test
+    period = 2
+    plot_FWHM(xiH, sigHlow, mlow, period, "Hyd Size")
+
+    # Plot SNR and FWHM
+    sf = np.zeros((len(dhyd_list), lent-1))
+    for i in range(len(dhyd_list)):
+        _, sf[i] = ftSignal(xiH[i], sigHlow[i], mlow[i], nlow[i], xi0[i], lz, sig, dt, freq, lent, pz, num, mulist[i], cycs)   
+    snr_list = []
+    fwhm_list = []
+    for i in range(len(dhyd_list)):
+        std = m.std()
+        tmp = max(sf[i])/std
+        snr_list.append(20*np.log10(abs(np.where(std == 0, 0, tmp))))
+        tmp = fwhm(xiH[i], sigHlow[i], mlow[i], 2)
+        fwhm_list.append(tmp)
+    plot_snr_fwhm(dhyd_list, snr_list, fwhm_list, "Hyd Size")
     
-    # PSF for core size
-    dM=[]
-    for m in M_lowPass:
-        dM.append(np.diff(np.append(Ms*m,0)))
-    dH=[]
-    for he in He:
-        dH.append(np.diff(np.append(he,0)))
-    
-    dM = [np.diff(np.append(m,0)) for m in M_lowPass]
-    dH = [np.diff(np.append(he, 0)) for he in He]
-    fig, ax = initialize_figure(figsize=(12,6))
-    for i in range(len(M)):
-        l = len(M[i])
-        k = int(l / params.nPeriod)
-        ax.plot(He[i][-k:]*1e3, dM[i][-k:]/dH[i][-k:] , color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
-    ax.set_xlim(-18,18)
-    ax.set_ylim(0, 300)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/core-psf.png')
-    
-    # peak and fwhm for core size
-    j = 2 # the magnetization for core size number j
-    Hlmask, dMdHlmask, maskl, Hrmask, dMdHrmask, maskr = peaksInit(He[j], dM[j], dH[j], params.nPeriod)
-    resultl = peaks_analysis(Hlmask, dMdHlmask, maskl)
-    resultr = peaks_analysis(Hrmask, dMdHrmask, maskr)
-    
-    fig, ax = initialize_figure(figsize=(12, 6))
-    ax.plot(Hlmask * 1e3, dMdHlmask, linewidth=3.0)
-    ax.plot(resultl['He_peak'] * 1e3, resultl['dmdH_peak'], 'rp', markersize=10, linewidth=3.0)
-    ax.axvspan(resultl['fwhm_left'] * 1e3, resultl['fwhm_right'] * 1e3, facecolor='c', alpha=0.1, linewidth=3.0)
-    
-    ax.plot(Hrmask * 1e3, dMdHrmask, linewidth=3.0)
-    ax.plot(resultr['He_peak'] * 1e3, resultr['dmdH_peak'], 'rp', markersize=10, linewidth=3.0)
-    ax.axvspan(resultr['fwhm_left'] * 1e3, resultr['fwhm_right'] * 1e3, facecolor='c', alpha=0.1, linewidth=3.0)
-    
-    ax.set_ylabel('dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
-    ax.set_xlim(-18,18)
-    ax.set_ylim(0, 250)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/core-fwhm.png')
-    
-    # fwhm and peaks data for core size
-    all_results = []
-    for i in range(len(M)):
-        Hlmask, dMdHlmask, maskl, Hrmask, dMdHrmask, maskr = peaksInit(He[i], dM[i], dH[i], params.nPeriod)
-        resultl = peaks_analysis(Hlmask, dMdHlmask, maskl)
-        resultr = peaks_analysis(Hrmask, dMdHrmask, maskr)
-        combined_result = {'CoreSize': i}  # Include the index as a core list identifier
-        combined_result.update({f'left peak {key}': value for key, value in resultl.items()})
-        combined_result.update({f'right peak {key}': value for key, value in resultr.items()})
-        all_results.append(combined_result)
-    
-    with open('MNP-properties/fwhm_peaks_Core.csv', 'w', newline='') as csvfile:
-        fieldnames = all_results[0].keys()
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        for result in all_results:
-            writer.writerow(result)
-    
-    #Magnetization in time for hyd size
-    d_core = 30e-9
-    params.set_params(dCore=d_core)
-    d_hyd_list = np.array([30, 35, 40, 45, 55, 60])
-    color_list, trsp_list = colorMap(d_hyd_list, 'sunset', ['gold', 'orange', 'darkorange'])
-    Ms = 3e5
-    t = []
-    He = []
-    for i, d in enumerate(d_hyd_list):
-        params.set_params(dHyd=d * 1e-9)
-        init = params.get_params()
-        t.append(params.tu / freq)
-        He.append(params.fieldB * np.cos(2 * np.pi * params.tu))
-    
-    # Magnetization in time for hyd size
-    with open('MNP-properties/effectOfDhydrodynamic.csv', 'r') as f:
-        reader = csv.reader(f)
-        M = [list(map(float, row)) for row in reader]
-    M_lowPass = []
-    for i in range(len(M)):
-        M_lowPass.append(low_pass_filter(np.array(M[i]), 1, 10000 * freq, 3 * freq))
-    
-    fig, ax1 = initialize_figure()
-    for i in range(len(M_lowPass)):
-        ax1.plot(t[i] * 1e3, He[i] * 1e3, 'black', linewidth=3.0)
-    ax1.set_xlabel('Time (ms)', weight='bold', fontsize=20)
-    ax1.set_ylabel('$\mu_0$H (mT)', weight='bold', fontsize=20)
-    ax1.xaxis.set_tick_params(labelsize=20)
-    ax1.yaxis.set_tick_params(labelsize=20)
-    ax1.plot([], [], 'black', linewidth=3.0, label='$\mu_0 H$ (mT)')
-    set_spines_grid(ax1)
-    ax2 = ax1.twinx()
-    ax2.xaxis.set_tick_params(labelsize=20)
-    ax2.yaxis.set_tick_params(labelsize=20)
-    for i in range(len(M_lowPass)):
-        ax2.plot(t[i] * 1e3, Ms*M_lowPass[i] * 1e-3, color=color_list[i], alpha=trsp_list[i], linewidth=3.0, label=f'$D_h$= {d_hyd_list[i]} nm')
-    ax2.set_ylabel('Mz (kA/m)', weight='bold', fontsize=20)
-    ax2.set_xlim(.02, .12)
-    set_spines_grid(ax2)
-    lines, labels = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    legend = ax1.legend(lines + lines2, labels + labels2, loc='upper left', bbox_to_anchor=(1.12, 1))
-    set_legend_properties(legend)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/hyd-magnetization-time.png')
-    
-    # Magnetization curve for hyd size
-    fig, ax = initialize_figure(figsize=(12, 6))
-    for i in range(len(M)):
-        l = len(M[i])
-        k = int(l / params.nPeriod)
-        ax.plot(He[i][-k:] * 1e3, Ms*M_lowPass[i][-k:] * 1e-3, color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('Mz (kA/m)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/hyd-magnetization-curve.png')
-    
-    # PSF for hyd size
-    dM = []
-    for m in M_lowPass:
-        dM.append(np.diff(np.append(Ms*m, 0)))
-    dH = []
-    for he in He:
-        dH.append(np.diff(np.append(he, 0)))
-    
-    dM = [np.diff(np.append(m, 0)) for m in M_lowPass]
-    dH = [np.diff(np.append(he, 0)) for he in He]
-    fig, ax = initialize_figure(figsize=(12, 6))
-    for i in range(len(M)):
-        l = len(M[i])
-        k = int(l / params.nPeriod)
-        ax.plot(He[i][-k:] * 1e3, dM[i][-k:] / dH[i][-k:], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
-    ax.set_xlim(-18, 18)
-    ax.set_ylim(0, 250)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/hyd-psf.png')
-    
-    # peak and fwhm for hyd size
-    j = 2  # the magnetization for core size number j
-    Hlmask, dMdHlmask, maskl, Hrmask, dMdHrmask, maskr = peaksInit(He[j], dM[j], dH[j], params.nPeriod)
-    resultl = peaks_analysis(Hlmask, dMdHlmask, maskl)
-    resultr = peaks_analysis(Hrmask, dMdHrmask, maskr)
-    
-    fig, ax = initialize_figure(figsize=(12, 6))
-    ax.plot(Hlmask * 1e3, dMdHlmask, linewidth=3.0)
-    ax.plot(resultl['He_peak'] * 1e3, resultl['dmdH_peak'], 'rp', markersize=10, linewidth=3.0)
-    ax.axvspan(resultl['fwhm_left'] * 1e3, resultl['fwhm_right'] * 1e3, facecolor='c', alpha=0.1, linewidth=3.0)
-    
-    ax.plot(Hrmask * 1e3, dMdHrmask, linewidth=3.0)
-    ax.plot(resultr['He_peak'] * 1e3, resultr['dmdH_peak'], 'rp', markersize=10, linewidth=3.0)
-    ax.axvspan(resultr['fwhm_left'] * 1e3, resultr['fwhm_right'] * 1e3, facecolor='c', alpha=0.1, linewidth=3.0)
-    
-    ax.set_ylabel('dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
-    ax.set_xlim(-18, 18)
-    ax.set_ylim(0, 250)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/hyd-fwhm.png')
-    
-    # fwhm and peaks data for hyd size
-    all_results = []
-    for i in range(len(M)):
-         Hlmask, dMdHlmask, maskl, Hrmask, dMdHrmask, maskr = peaksInit(He[i], dM[i], dH[i], params.nPeriod)
-         resultl = peaks_analysis(Hlmask, dMdHlmask, maskl)
-         resultr = peaks_analysis(Hrmask, dMdHrmask, maskr)
-         combined_result = {'HydSize': i}  # Include the index as a core list identifier
-         combined_result.update({f'left peak {key}': value for key, value in resultl.items()})
-         combined_result.update({f'right peak {key}': value for key, value in resultr.items()})
-         all_results.append(combined_result)
-    
-    with open('MNP-properties/fwhm_peaks_hyd.csv', 'w', newline='') as csvfile:
-         fieldnames = all_results[0].keys()
-         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-         writer.writeheader()
-         for result in all_results:
-             writer.writerow(result)
-    
-    # Anisotropy
-    d_core = 30e-9
-    d_hyd = 40e-9
-    params.set_params(dCore = d_core, dHyd = d_hyd)
+    # FWHM data
+    print_fwhm(xiH, sigHlow, mlow, dhyd_list, "Hyd Size")
+
+    # Kanis --------------------------------------------------
+    Ms = data.Ms
     ka_list = np.array([3, 5, 8, 10, 15])
-    Ms = 3e5
     color_list, trsp_list = colorMap(ka_list, 'grapes', ['violet', 'fuchsia', 'mediumvioletred'])
-    t = []
-    He = []
-    for i, d in enumerate(ka_list):
-        params.set_params(kAnis=d * 1e3)
-        init = params.get_params()
-        t.append(params.tu / freq)
-        He.append(params.fieldB * np.cos(2 * np.pi * params.tu))
+    m = genfromtxt('MNP-properties/data/Anis_M.csv', delimiter=',')
+    n = genfromtxt('MNP-properties/data/Anis_N.csv', delimiter=',')
+    sigH = genfromtxt('MNP-properties/data/Anis_sigH.csv', delimiter=',')
+    mlow = np.zeros((len(m), lent))
+    nlow = np.zeros((len(n), lent))
+    sigHlow = np.zeros((len(sigH), lent))
+    for i in range(len(m)):
+        mlow[i]= low_pass_filter(m[i], 4, 400*freq, 5*freq)
+        nlow[i]= low_pass_filter(n[i], 4, 400*freq, 5*freq)
+        sigHlow[i]= low_pass_filter(sigH[i], 4, 400*freq, 5*freq)
+
+    # M_t
+    plot_M_t(t, He, mlow, Ms, color_list, trsp_list, ka_list, "Ka")
+
+    # M_H
+    plot_M_H(He, mlow, Ms, color_list, trsp_list, "Ka")
+
+    # signals and Harmonics
+    gz = 1 # 1T = * 795.7747 A/m
+    pz = 20e-3 # 1mT = 795.7747 A/m, I = 1.59 A
+    xiH = np.zeros((len(ka_list), lent))
+    xi0 = np.zeros(len(ka_list))
+    mulist = np.zeros(len(ka_list))
+    lz = 1e-3
+    for j, d in enumerate(ka_list):
+        data.kAnis = d*1e-9
+        Params(data)
+        sig = params.sig
+        mulist[j] = params.mu
+        xi0[j] = params.xi0
+        xiH[j,:] = xi0[j] * Ht(freq, t)
+
+    plot_Signal(xiH, sigHlow, mlow, nlow, xi0, lz, sig, dt, freq, lent, pz, num, mulist, cycs, ka_list, "Ka")
     
-    # Magnetization in time for anisotropy
-    with open('MNP-properties/effectOfAnisotropy.csv', 'r') as f:
-        reader = csv.reader(f)
-        M = [list(map(float, row)) for row in reader]
-    M_lowPass = []
-    for i in range(len(M)):
-        M_lowPass.append(low_pass_filter(np.array(M[i]), 1, 10000 * freq, 3 * freq))
+    # PSF
+    plot_PSF(xiH, sigHlow, mlow, dco_list, dt, color_list, trsp_list, "Ka")
+
+    # PSF + FWHM for test
+    period = 2
+    plot_FWHM(xiH, sigHlow, mlow, period, "Ka")
+
+    # Plot SNR and FWHM
+    sf = np.zeros((len(ka_list), lent-1))
+    for i in range(len(ka_list)):
+        _, sf[i] = ftSignal(xiH[i], sigHlow[i], mlow[i], nlow[i], xi0[i], lz, sig, dt, freq, lent, pz, num, mulist[i], cycs)   
+    snr_list = []
+    fwhm_list = []
+    for i in range(len(ka_list)):
+        std = m.std()
+        tmp = max(sf[i])/std
+        snr_list.append(20*np.log10(abs(np.where(std == 0, 0, tmp))))
+        tmp = fwhm(xiH[i], sigH[i], mlow[i], 2)
+        fwhm_list.append(tmp)
+    plot_snr_fwhm(ka_list, snr_list, fwhm_list, "Ka")
     
-    fig, ax1 = initialize_figure()
-    for i in range(len(M_lowPass)):
-        ax1.plot(t[i] * 1e3, He[i] * 1e3, 'black', linewidth=3.0)
-    ax1.set_xlabel('Time (ms)', weight='bold', fontsize=20)
-    ax1.set_ylabel('$\mu_0$H (mT)', weight='bold', fontsize=20)
-    ax1.xaxis.set_tick_params(labelsize=20)
-    ax1.yaxis.set_tick_params(labelsize=20)
-    ax1.plot([], [], 'black', linewidth=3.0, label='$\mu_0 H$ (mT)')
-    set_spines_grid(ax1)
-    ax2 = ax1.twinx()
-    ax2.xaxis.set_tick_params(labelsize=20)
-    ax2.yaxis.set_tick_params(labelsize=20)
-    for i in range(len(M_lowPass)):
-        ax2.plot(t[i] * 1e3, Ms*M_lowPass[i] * 1e-3, color=color_list[i], alpha=trsp_list[i], linewidth=3.0, label=f'$Ka$= {ka_list[i]} kJ/$m^3$')
-    ax2.set_ylabel('Mz (kA/m)', weight='bold', fontsize=20)
-    ax2.set_xlim(.02, .12)
-    set_spines_grid(ax2)
-    lines, labels = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    legend = ax1.legend(lines + lines2, labels + labels2, loc='upper left', bbox_to_anchor=(1.12, 1))
-    set_legend_properties(legend)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/anis-magnetization-time.png')
+    # FWHM data
+    print_fwhm(xiH, sigHlow, mlow, ka_list, "Ka")
+
+    # Magnetization Saturation --------------------------------------------------
+    ms_list = np.array([50, 100, 200, 300, 400, 500])
+    color_list, trsp_list = colorMap(ms_list, 'red-brown', ['lightcoral', 'red', 'firebrick'])
+    m = genfromtxt('MNP-properties/data/Satu_M.csv', delimiter=',')
+    n = genfromtxt('MNP-properties/data/Satu_N.csv', delimiter=',')
+    sigH = genfromtxt('MNP-properties/data/Satu_sigH.csv', delimiter=',')
+    mlow = np.zeros((len(m), lent))
+    nlow = np.zeros((len(n), lent))
+    sigHlow = np.zeros((len(sigH), lent))
+    for i in range(len(m)):
+        mlow[i]= low_pass_filter(m[i], 4, 400*freq, 5*freq)
+        nlow[i]= low_pass_filter(n[i], 4, 400*freq, 5*freq)
+        sigHlow[i]= low_pass_filter(sigH[i], 4, 400*freq, 5*freq)
+
+    # M_t
+    plot_M_t(t, He, mlow, Ms, color_list, trsp_list, ms_list, "Ms")
+
+    # M_H
+    plot_M_H(He, mlow, Ms, color_list, trsp_list, "Ms")
+
+    # signals and Harmonics
+    gz = 1 # 1T = * 795.7747 A/m
+    pz = 20e-3 # 1mT = 795.7747 A/m, I = 1.59 A
+    xiH = np.zeros((len(ms_list), lent))
+    xi0 = np.zeros(len(ms_list))
+    mulist = np.zeros(len(ms_list))
+    lz = 1e-3
+    for j, d in enumerate(ms_list):
+        data.Ms = d*1e3
+        Params(data)
+        sig = params.sig
+        mulist[j] = params.mu
+        xi0[j] = params.xi0
+        xiH[j,:] = xi0[j] * Ht(freq, t)
+
+    plot_Signal(xiH, sigHlow, mlow, nlow, xi0, lz, sig, dt, freq, lent, pz, num, mulist, cycs, ms_list, "Ms")
     
-    # Magnetization curve for anisotoropy
-    fig, ax = initialize_figure(figsize=(12, 6))
-    for i in range(len(M)):
-        l = len(M[i])
-        k = int(l / params.nPeriod)
-        ax.plot(He[i][-2*k:-k+100] * 1e3, Ms*M_lowPass[i][-2*k:-k+100] * 1e-3, color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('Mz (kA/m)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/anis-magnetization-curve.png')
+    # PSF
+    plot_PSF(xiH, sigHlow, mlow, ms_list, dt, color_list, trsp_list, "Ms")
+
+    # PSF + FWHM for test
+    period = 2
+    plot_FWHM(xiH, sigHlow, mlow, period, "Ms")
+
+    # Plot SNR and FWHM
+    sf = np.zeros((len(ms_list), lent-1))
+    for i in range(len(ms_list)):
+        _, sf[i] = ftSignal(xiH[i], sigHlow[i], mlow[i], nlow[i], xi0[i], lz, sig, dt, freq, lent, pz, num, mulist[i], cycs)   
+    snr_list = []
+    fwhm_list = []
+    for i in range(len(ms_list)):
+        std = m.std()
+        tmp = max(sf[i])/std
+        snr_list.append(20*np.log10(abs(np.where(std == 0, 0, tmp))))
+        tmp = fwhm(xiH[i], sigHlow[i], mlow[i], 2)
+        fwhm_list.append(tmp)
+    plot_snr_fwhm(ms_list, snr_list, fwhm_list, "Ms")
     
-    # PSF for anisotropy
-    dM = []
-    for m in M_lowPass:
-        dM.append(np.diff(np.append(Ms*m, 0)))
-    dH = []
-    for he in He:
-        dH.append(np.diff(np.append(he, 0)))
-    
-    dM = [np.diff(np.append(m, 0)) for m in M_lowPass]
-    dH = [np.diff(np.append(he, 0)) for he in He]
-    fig, ax = initialize_figure(figsize=(12, 6))
-    for i in range(len(M)):
-        l = len(M[i])
-        k = int(l / params.nPeriod)
-        ax.plot(He[i][-2*k:-k+100] * 1e3, dM[i][-2*k:-k+100] / dH[i][-2*k:-k+100], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
-    ax.set_xlim(-18, 18)
-    ax.set_ylim(0, 250)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/anis-psf.png')
-    
-    # peak and fwhm for anisotropy
-    j = 2  # the magnetization for core size number j
-    Hlmask, dMdHlmask, maskl, Hrmask, dMdHrmask, maskr = peaksInit(He[j], dM[j], dH[j], params.nPeriod)
-    resultl = peaks_analysis(Hlmask, dMdHlmask, maskl)
-    resultr = peaks_analysis(Hrmask, dMdHrmask, maskr)
-    
-    fig, ax = initialize_figure(figsize=(12, 6))
-    ax.plot(Hlmask * 1e3, dMdHlmask, linewidth=3.0)
-    ax.plot(resultl['He_peak'] * 1e3, resultl['dmdH_peak'], 'rp', markersize=10, linewidth=3.0)
-    ax.axvspan(resultl['fwhm_left'] * 1e3, resultl['fwhm_right'] * 1e3, facecolor='c', alpha=0.1, linewidth=3.0)
-    
-    ax.plot(Hrmask * 1e3, dMdHrmask, linewidth=3.0)
-    ax.plot(resultr['He_peak'] * 1e3, resultr['dmdH_peak'], 'rp', markersize=10, linewidth=3.0)
-    ax.axvspan(resultr['fwhm_left'] * 1e3, resultr['fwhm_right'] * 1e3, facecolor='c', alpha=0.1, linewidth=3.0)
-    
-    ax.set_ylabel('dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
-    ax.set_xlim(-18, 18)
-    ax.set_ylim(0, 250)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/anis-fwhm.png')
-    
-    # fwhm and peaks data for anisotropy
-    all_results = []
-    for i in range(len(M)-1):
-        Hlmask, dMdHlmask, maskl, Hrmask, dMdHrmask, maskr = peaksInit(He[i], dM[i], dH[i], params.nPeriod)
-        resultl = peaks_analysis(Hlmask, dMdHlmask, maskl)
-        resultr = peaks_analysis(Hrmask, dMdHrmask, maskr)
-        combined_result = {'Anis': i}  # Include the index as a core list identifier
-        combined_result.update({f'left peak {key}': value for key, value in resultl.items()})
-        combined_result.update({f'right peak {key}': value for key, value in resultr.items()})
-        all_results.append(combined_result)
-    
-    with open('MNP-properties/fwhm_peaks_anis.csv', 'w', newline='') as csvfile:
-        fieldnames = all_results[0].keys()
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        for result in all_results:
-            writer.writerow(result)
-
-    # Magnetization Saturation
-    d_core = 30e-9
-    d_hyd = 40e-9
-    ka = 3e3
-    params.set_params(dCore = d_core, dHyd = d_hyd, kAnis = ka)
-    Ms_list = np.array([50, 100, 200, 300, 400, 500])
-    color_list, trsp_list = colorMap(Ms_list, 'red-brown', ['lightcoral', 'red', 'firebrick'] )
-    t = []
-    He = []
-    for i, d in enumerate(Ms_list):
-        params.set_params(Ms=d * 1e3)
-        init = params.get_params()
-        t.append(params.tu / freq)
-        He.append(params.fieldB * np.cos(2 * np.pi * params.tu))
-
-    # Magnetization in time for magnetization saturation
-    with open('MNP-properties/effectOfMagnetization.csv', 'r') as f:
-        reader = csv.reader(f)
-        M = [list(map(float, row)) for row in reader]
-    M_lowPass = []
-    for i in range(len(M)):
-        M_lowPass.append(low_pass_filter(np.array(M[i]), 1, 10000 * freq, 3 * freq))
-
-    fig, ax1 = initialize_figure()
-    for i in range(len(M_lowPass)):
-        ax1.plot(t[i] * 1e3, He[i] * 1e3, 'black', linewidth=3.0)
-    ax1.set_xlabel('Time (ms)', weight='bold', fontsize=20)
-    ax1.set_ylabel('$\mu_0$H (mT)', weight='bold', fontsize=20)
-    ax1.xaxis.set_tick_params(labelsize=20)
-    ax1.yaxis.set_tick_params(labelsize=20)
-    ax1.plot([], [], 'black', linewidth=3.0, label='$\mu_0 H$ (mT)')
-    set_spines_grid(ax1)
-    ax2 = ax1.twinx()
-    ax2.xaxis.set_tick_params(labelsize=20)
-    ax2.yaxis.set_tick_params(labelsize=20)
-    for i in range(len(M_lowPass)):
-        ax2.plot(t[i] * 1e3, M_lowPass[i], color=color_list[i], alpha=trsp_list[i], linewidth=3.0, label=f'$Ms$= {Ms_list[i]} kA/m')
-    ax2.set_ylabel('Mz (kA/m)', weight='bold', fontsize=20)
-    ax2.set_xlim(.02, .12)
-    set_spines_grid(ax2)
-    lines, labels = ax1.get_legend_handles_labels()
-    lines2, labels2 = ax2.get_legend_handles_labels()
-    legend = ax1.legend(lines + lines2, labels + labels2, loc='upper left', bbox_to_anchor=(1.12, 1))
-    set_legend_properties(legend)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/satu-magnetization-time1.png')
-
-    # Magnetization curve for magnetization saturation
-    fig, ax = initialize_figure(figsize=(12, 6))
-    for i in range(len(M)):
-        l = len(M[i])
-        k = int(l / params.nPeriod)
-        ax.plot(He[i][-2*k:-k+100] * 1e3, Ms_list[i]*M_lowPass[i][-2*k:-k+100], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('Mz (kA/m)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/satu-magnetization-curve1.png')
-
-    # PSF for magnetization saturation
-    dM = []
-    for i, m in enumerate(M_lowPass):
-        dM.append(np.diff(np.append(1e3*Ms_list[i]*m, 0)))
-    dH = []
-    for he in He:
-        dH.append(np.diff(np.append(he, 0)))
-
-    dM = [np.diff(np.append(m, 0)) for m in M_lowPass]
-    dH = [np.diff(np.append(he, 0)) for he in He]
-    fig, ax = initialize_figure(figsize=(12, 6))
-    for i in range(len(M)):
-        l = len(M[i])
-        k = int(l / params.nPeriod)
-        ax.plot(He[i][-2*k:-k+100] * 1e3, dM[i][-2*k:-k+100] / dH[i][-2*k:-k+100], color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
-    ax.set_xlim(-18, 18)
-    ax.set_ylim(0, 250)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/satu-psf1.png')
-
-    # peak and fwhm for magnetization saturation
-    j = 2  # the magnetization for magnetization saturation number j
-    Hlmask, dMdHlmask, maskl, Hrmask, dMdHrmask, maskr = peaksInit(He[j], dM[j], dH[j], params.nPeriod)
-    resultl = peaks_analysis(Hlmask, dMdHlmask, maskl)
-    resultr = peaks_analysis(Hrmask, dMdHrmask, maskr)
-
-    fig, ax = initialize_figure(figsize=(12, 6))
-    ax.plot(Hlmask * 1e3, dMdHlmask, linewidth=3.0)
-    ax.plot(resultl['He_peak'] * 1e3, resultl['dmdH_peak'], 'rp', markersize=10, linewidth=3.0)
-    ax.axvspan(resultl['fwhm_left'] * 1e3, resultl['fwhm_right'] * 1e3, facecolor='c', alpha=0.1, linewidth=3.0)
-
-    ax.plot(Hrmask * 1e3, dMdHrmask, linewidth=3.0)
-    ax.plot(resultr['He_peak'] * 1e3, resultr['dmdH_peak'], 'rp', markersize=10, linewidth=3.0)
-    ax.axvspan(resultr['fwhm_left'] * 1e3, resultr['fwhm_right'] * 1e3, facecolor='c', alpha=0.1, linewidth=3.0)
-
-    ax.set_ylabel('dM/dH (A/m/$\mu_0$H)', weight='bold', fontsize=30)
-    ax.set_xlabel('$\mu_0$H (mT)', weight='bold', fontsize=30)
-    ax.set_xlim(-18, 18)
-    ax.set_ylim(0, 250)
-    set_spines_grid(ax)
-    plt.tight_layout()
-    plt.savefig('MNP-properties/satu-fwhm1.png')
-
-    # fwhm and peaks data for magnetization saturation
-    all_results = []
-    for i in range(1, len(M)):
-        Hlmask, dMdHlmask, maskl, Hrmask, dMdHrmask, maskr = peaksInit(He[i], dM[i], dH[i], params.nPeriod)
-        resultl = peaks_analysis(Hlmask, dMdHlmask, maskl)
-        resultr = peaks_analysis(Hrmask, dMdHrmask, maskr)
-        combined_result = {'Saturation': i}  # Include the index as a core list identifier
-        combined_result.update({f'left peak {key}': value for key, value in resultl.items()})
-        combined_result.update({f'right peak {key}': value for key, value in resultr.items()})
-        all_results.append(combined_result)
-
-    with open('MNP-properties/fwhm_peaks_saturation.csv', 'w', newline='') as csvfile:
-        fieldnames = all_results[0].keys()
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        for result in all_results:
-            writer.writerow(result)
+    # FWHM data
+    print_fwhm(xiH, sigHlow, mlow, ms_list, "Ms")
