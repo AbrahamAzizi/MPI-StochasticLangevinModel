@@ -51,7 +51,7 @@ def colorMap(lenlist, name, colors):
 if __name__ == '__main__':
     
     data = Data( )
-    B = data.filedAmpl
+    B = data.fieldAmpl
     f = data.fieldFreq
     Ms = data.Ms
     kT = data.kB*data.temp
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     color_list, trsp_list = colorMap(minDistList, 'forest', ['lime', 'seagreen', 'forestgreen'])
     Mfilt=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        Mfilt[i,:] = low_pass_filter(M[i,:], 4, fs, 15*f)
+        Mfilt[i,:] = low_pass_filter(M[i,:], 1, fs, 15*f)
     dco = 25e-9
     Vc = 1 / 6 * np.pi * dco ** 3
     mu = Ms * Vc
@@ -169,7 +169,7 @@ if __name__ == '__main__':
 
     ax = fig.add_subplot(gs[0, 0])
     for i in range(M.shape[0]):
-        ax.plot(He[2*winlen:4*winlen] * 1e3, Mfilt[i, 2*winlen:4*winlen] * 1e-3, color=color_list[i], alpha=trsp_list[i], linewidth=3.0, label=fr'$min distance$ {minDistList[i]} nm')
+        ax.plot(He[2*winlen:4*winlen] * 1e3, Ms*Mfilt[i, 2*winlen:4*winlen] * 1e-3, color=color_list[i], alpha=trsp_list[i], linewidth=3.0, label=fr'$min distance$ {minDistList[i]} nm')
     ax.set_ylabel('Mz (kA/m)', weight='bold', fontsize=30)
     ax.set_xlabel(r'$\mu_0$H (mT)', weight='bold', fontsize=30)
     ax.xaxis.set_tick_params(labelsize=30)
@@ -221,7 +221,7 @@ if __name__ == '__main__':
     color_list, trsp_list = colorMap(minDistList, 'red-brown', ['lightcoral', 'red', 'firebrick'] )
     Mfilt=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        Mfilt[i,:] = low_pass_filter(Ms*M[i,:], 4, fs, 15*f)
+        Mfilt[i,:] = low_pass_filter(Ms*M[i,:], 1, fs, 15*f)
     dco = 30e-9
     Vc = 1 / 6 * np.pi * dco ** 3
     mu = Ms * Vc
@@ -360,7 +360,7 @@ if __name__ == '__main__':
     color_list, trsp_list = colorMap(minDistList, 'sunset', ['gold', 'orange', 'darkorange'])
     Mfilt=np.zeros(M.shape)
     for i in range(M.shape[0]):
-        Mfilt[i,:] = low_pass_filter(Ms*M[i,:], 4, fs, 15*f)
+        Mfilt[i,:] = low_pass_filter(Ms*M[i,:], 1, fs, 15*f)
     dco = 35e-9
     Vc = 1 / 6 * np.pi * dco ** 3
     mu = Ms * Vc
