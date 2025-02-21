@@ -10,7 +10,7 @@ if __name__ == '__main__':
     data.rsol = 100
     rsol = data.rsol # 20 for 1 MHz
     print("number of samples per period: ", rsol)
-    B = data.filedAmpl
+    B = data.fieldAmpl
     print("applied field amplitudes: ", B)
     f = data.fieldFreq
     print("applied field frequencies: ", f)
@@ -38,8 +38,8 @@ if __name__ == '__main__':
         M[i,:], Hdd[i, :] = CombinedNeelBrown(data)
         print('\r', 'coresize25_minDist: ' + "." * 10 + " ", end=str(i)+'/'+str(len(minDistList)-1))
     print()
-    np.savetxt('M_size25.csv', M, delimiter=',', comments='')
-    np.savetxt('Hdd_size25.csv', Hdd, delimiter=',', comments='')
+    np.savetxt('dipoleIntractionEffect/data/M_size25.csv', M, delimiter=',', comments='')
+    np.savetxt('dipoleIntractionEffect/data/Hdd_size25.csv', Hdd, delimiter=',', comments='')
 
     # core size 30
     core_size = 30e-9
@@ -54,8 +54,8 @@ if __name__ == '__main__':
         M[i,:], Hdd[i, :] = CombinedNeelBrown(data)
         print('\r', 'coresize30_minDist: ' + "." * 10 + " ", end=str(i)+'/'+str(len(minDistList)-1))
     print()
-    np.savetxt('M_size30.csv', M, delimiter=',', comments='')
-    np.savetxt('Hdd_size30.csv', Hdd, delimiter=',', comments='')
+    np.savetxt('dipoleIntractionEffect/data/M_size30.csv', M, delimiter=',', comments='')
+    np.savetxt('dipoleIntractionEffect/data/Hdd_size30.csv', Hdd, delimiter=',', comments='')
 
 
     # core size 35
@@ -71,5 +71,5 @@ if __name__ == '__main__':
         M[i,:], Hdd[i, :] = CombinedNeelBrown(data)
         print('\r', 'coresize35_minDist: ' + "." * 10 + " ", end=str(i)+'/'+str(len(minDistList)-1))
     print("\n")
-    np.savetxt('M_size35.csv', M, delimiter=',', comments='')
-    np.savetxt('Hdd_size35.csv', Hdd, delimiter=',', comments='')
+    np.savetxt('dipoleIntractionEffect/data/M_size35.csv', M, delimiter=',', comments='')
+    np.savetxt('dipoleIntractionEffect/data/Hdd_size35.csv', Hdd, delimiter=',', comments='')

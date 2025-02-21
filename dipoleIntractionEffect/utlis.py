@@ -67,7 +67,7 @@ def CombinedNeelBrown(data):
     cycs = data.nPeriod
     num = data.nParticle
     kT = data.kB*data.temp
-    B = data.filedAmpl
+    B = data.fieldAmpl
     f = data.fieldFreq
     dco = data.dCore
     dhy = data.dHyd
@@ -114,7 +114,7 @@ def CombinedNeelBrown(data):
         dn = sig*a[:, np.newaxis] * (m - a[:, np.newaxis] * n) * ut + np.cross(np.random.randn(num, 3), n) * np.sqrt(ut)
         n = n + dn
         n = n / np.linalg.norm(n, axis=1, keepdims=True)
-
+        
         Hdd = sum_dipole_field(A, num, m, threadNum, serialNum, mu, kT)
         Hdipole[j, :] = np.mean(Hdd, axis=0)
 
