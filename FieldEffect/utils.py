@@ -39,18 +39,10 @@ def ftsignal(xiH, sigH, m, lz, dt, num, mu, lent, pz, cycs):
     sf = abs(np.fft.fftshift(uk))
     return st, sf
 
-def subsample_signal(M, original_fs, target_fs):
-    # Compute decimation factor
-    decimation_factor = int(original_fs / target_fs)
-    if original_fs % target_fs != 0:
-        raise ValueError("Original sampling rate must be an integer multiple of the target sampling rate.")
-
-    # Low-pass filter before decimation to avoid aliasing
-    cutoff_frequency = target_fs / 2  # Nyquist frequency of the target sampling rate
-    filtered_signal = lowpass_filter(M, 1, original_fs, cutoff_frequency)
-
-    # Decimate the filtered signal
-    subsignal = decimate(filtered_signal, decimation_factor, axis=-1, ftype='iir')
+def subsample_signal(signal, fs, fsub, dwnSampFac):
+    cutoff_frequency = fsub / 2  
+    filtered_signal = lowpass_filter(signal, 1, fs, cutoff_frequency)
+    subsignal = decimate(filtered_signal, dwnSampFac, axis=-1, ftype='iir')
     return subsignal
 
 # Neel relaxation time Fannin and Charless
@@ -155,8 +147,8 @@ def psf_xiH(xiH, sigH, m, dt, lent, winlen, period):
   leftt = t[(2*period-2)*winlen : (2*period-1)*winlen]
   rightm = m[(2*period-1)*winlen : (2*period)*winlen]
   rightt = t[(2*period-1)*winlen : (2*period)*winlen]
-  leftpsf = savgol_filter(kaiser(winlen, 14)*fftDif(leftt ,leftm)/fftDif(leftt, leftxi), 20, 1, mode='nearest')
-  rightpsf = savgol_filter(kaiser(winlen, 14)*fftDif(rightt, rightm)/fftDif(rightt, rightxi), 20, 1, mode='nearest')
+  leftpsf = savgol_filter(kaiser(winlen, 20)*fftDif(leftt ,leftm)/fftDif(leftt, leftxi), 10, 1, mode='nearest')
+  rightpsf = savgol_filter(kaiser(winlen, 20)*fftDif(rightt, rightm)/fftDif(rightt, rightxi), 10, 1, mode='nearest')
   return leftxiH, leftpsf, rightxiH, rightpsf
 
 def fwhm_and_psf_peaks(xiH, psf):

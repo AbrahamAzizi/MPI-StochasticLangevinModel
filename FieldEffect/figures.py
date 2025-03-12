@@ -119,7 +119,7 @@ def plot_PSF(xiH, sigH, m, dt, lent, cycs, color_list, trsp_list, figName):
         wincnt = 2*cycs
         for j in range(wincnt):
             tmp = dmdxi[j*winlen : (j+1)*winlen]
-            dmdxi[j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen, 14)*tmp, 20, 1, mode='nearest')
+            dmdxi[j*winlen : (j+1)*winlen] = savgol_filter(kaiser(winlen, 20)*tmp, 10, 1, mode='nearest')
         ax.plot(xiH[i, 2*winlen:4*winlen]*1e3, dmdxi[2*winlen:4*winlen], color=color_list[i], alpha=trsp_list[i], linewidth=3.0) 
     ax.set_ylabel(r'dm/d$\xi$', weight='bold', fontsize=30)
     ax.set_xlabel(r'$\xi^{\prime}$', weight='bold', fontsize=30)
@@ -184,6 +184,7 @@ if __name__ == '__main__':
     kT = data.kB*data.temp
     cycs = data.nPeriod
     fieldAml_list = np.array([20, 15, 10, 5])
+    rsol_list = np.array([15000, 15000, 15000])
 
     dco_list = np.array([25, 30, 35])
     figName_list = ["Core25", "Core30", "Core35"]
@@ -200,10 +201,12 @@ if __name__ == '__main__':
         dhyd = dco+10e-9
         data.dCore = dco
         data.dHyd = dhyd
+        data.rsol = rsol_list[i]
         params = MPI_Langevin_std_init(data)
         fs = params.fs
         print("original sampling frequency fs = ", fs)
-        fsub = fs/10
+        dwnSampFac = 200
+        fsub = fs/dwnSampFac
         print("target sampling frequency fsub = ", fsub)
         #dt = params.dt # without subsampling
         dt = 1/fsub
@@ -225,9 +228,9 @@ if __name__ == '__main__':
         n = np.zeros((nraw.shape[0], lent))
         sigH = np.zeros((sigHraw.shape[0], lent))
         for i in range(len(mraw)):
-            m[i] = subsample_signal(mraw[i], params.fs, fsub)
-            n[i] = subsample_signal(nraw[i], params.fs, fsub)
-            sigH[i] = subsample_signal(sigHraw[i], fs, fsub)
+            m[i] = subsample_signal(mraw[i], params.fs, fsub, dwnSampFac)
+            n[i] = subsample_signal(nraw[i], params.fs, fsub, dwnSampFac)
+            sigH[i] = subsample_signal(sigHraw[i], fs, fsub, dwnSampFac)
 
         color_list, trsp_list = colorMap(fieldAml_list, color, colorVar)
 
