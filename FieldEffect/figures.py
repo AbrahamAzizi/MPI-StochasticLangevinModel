@@ -72,13 +72,13 @@ def plot_M_H(He, m, Ms, winlen, color_list, trsp_list, figName):
     plt.tight_layout()
     plt.savefig(f'FieldEffect/figures/{figName}_M_H.png')
 
-def plot_Signal(xiH, sigH, m, lz, dt, f, num, mu, lent, pz, cycs, figName):
+def plot_Signal(xiH, sigH, m, dt, f, lz, mu, num, lent, pz, cycs, figName):
     _, ax = initialize_figure(figsize=(12,6))
     sf = np.zeros((len(fieldAml_list), lent))
     for i in range(len(fieldAml_list)):
-        st, sf[i] = ftsignal(xiH[i], sigH[i], m[i], lz, dt, num, mu, lent, pz, cycs)
+        st, sf[i] = ftsignal(xiH[i], sigH[i], m[i], dt, lz, mu, num, lent, pz, cycs)
         ax.plot(t*1e3, st, color=color_list[i], alpha=trsp_list[i], linewidth=3.0)
-    ax.set_ylabel('V/m', weight='bold', fontsize=30)
+    ax.set_ylabel('V', weight='bold', fontsize=30)
     ax.set_xlabel('t(ms)', weight='bold', fontsize=30)
     ax.set_xlim(.01, .11)
     set_spines_grid(ax)
@@ -180,14 +180,15 @@ if __name__ == '__main__':
     B = data.fieldAmpl
     ka = data.kAnis
     Ms = data.Ms
-    num = data.nParticle
+    num = data.nParticle * np.array([4.58*1e9, 2.35*1e9, 1.36*1e9, 8.52*1e8]) # 1 ug/m3
     kT = data.kB*data.temp
     cycs = data.nPeriod
     fieldAml_list = np.array([20, 15, 10, 5])
-    rsol_list = np.array([15000, 15000, 15000])
+    rsol_list = np.array([15000, 15000, 15000, 15000])
+    dwnSampFac = np.array([100, 110, 110, 100])
 
-    dco_list = np.array([25, 30, 35])
-    figName_list = ["Core25", "Core30", "Core35"]
+    dco_list = np.array([20, 25, 30, 35])
+    figName_list = ["Core20", "Core25", "Core30", "Core35"]
     colorName_list = ['forest', 'sunset', 'red-brown', 'grapes']
     colorVar_list = [['lime', 'seagreen', 'forestgreen'], \
                     ['gold', 'orange', 'darkorange'], \
@@ -205,8 +206,7 @@ if __name__ == '__main__':
         params = MPI_Langevin_std_init(data)
         fs = params.fs
         print("original sampling frequency fs = ", fs)
-        dwnSampFac = 200
-        fsub = fs/dwnSampFac
+        fsub = fs/dwnSampFac[i]
         print("target sampling frequency fsub = ", fsub)
         #dt = params.dt # without subsampling
         dt = 1/fsub
@@ -215,22 +215,21 @@ if __name__ == '__main__':
         winlen = int(lent/(2*cycs))
         t = np.array([i*dt for i in range(lent)])
         He = np.zeros((len(fieldAml_list), lent))
-        for i, a in enumerate(fieldAml_list):
-            He[i,:] = np.array([a*1e-3 * Ht(f,i*dt) for i in range(lent)])
+        for j, a in enumerate(fieldAml_list):
+            He[j,:] = np.array([a*1e-3 * Ht(f,k*dt) for k in range(lent)])
 
         color = colorName_list[i]
         colorVar = colorVar_list[i]
         mraw = genfromtxt(f'FieldEffect/data/{figName}_M.csv', delimiter=',')
         nraw = genfromtxt(f'FieldEffect/data/{figName}_N.csv', delimiter=',')
         sigHraw = genfromtxt(f'FieldEffect/data/{figName}_sigH.csv', delimiter=',')
-
         m = np.zeros((mraw.shape[0], lent))
         n = np.zeros((nraw.shape[0], lent))
         sigH = np.zeros((sigHraw.shape[0], lent))
-        for i in range(len(mraw)):
-            m[i] = subsample_signal(mraw[i], params.fs, fsub, dwnSampFac)
-            n[i] = subsample_signal(nraw[i], params.fs, fsub, dwnSampFac)
-            sigH[i] = subsample_signal(sigHraw[i], fs, fsub, dwnSampFac)
+        for j in range(len(mraw)):
+            m[j] = subsample_signal(mraw[j], params.fs, fsub, dwnSampFac[i])
+            n[j] = subsample_signal(nraw[j], params.fs, fsub, dwnSampFac[i])
+            sigH[j] = subsample_signal(sigHraw[j], fs, fsub, dwnSampFac[i])
 
         color_list, trsp_list = colorMap(fieldAml_list, color, colorVar)
 
@@ -252,7 +251,7 @@ if __name__ == '__main__':
         for j, a in enumerate(fieldAml_list):
             xi0[j] = mu * a*1e-3 / (2*kT)
             xiH[j,:] = np.array([xi0[j] * Ht(f, k*dt) for k in range(lent)])
-        plot_Signal(xiH, sigH, m, lz, dt, f, num, mu, lent, pz, cycs, figName)
+        plot_Signal(xiH, sigH, m, dt, f, lz, mu, num[i], lent, pz, cycs, figName)
 
         # PSF
         plot_PSF(xiH, sigH, m, dt, lent, cycs, color_list, trsp_list, figName)
@@ -263,15 +262,15 @@ if __name__ == '__main__':
 
         # Plot for SNR 25 and FWHM 25
         sf = np.zeros((len(fieldAml_list), lent))
-        for i in range(len(fieldAml_list)):
-            _, sf[i] = ftsignal(xiH[i], sigH[i], m[i], lz, dt, mu, num, lent, pz, cycs)   
+        for j in range(len(fieldAml_list)):
+            _, sf[j] = ftsignal(xiH[j], sigH[j], m[j], dt, lz, mu, num[i], lent, pz, cycs)   
         snr_list = []
         fwhm_list = []
-        for i in range(len(fieldAml_list)):
+        for j in range(len(fieldAml_list)):
             std = m.std()
-            tmp = max(sf[i])/std
+            tmp = max(sf[j])/std
             snr_list.append(20*np.log10(abs(np.where(std == 0, 0, tmp))))
-            tmp = fwhm(xiH[i], sigH[i], m[i], dt, lent, winlen, 2)
+            tmp = fwhm(xiH[j], sigH[j], m[j], dt, lent, winlen, 2)
             fwhm_list.append(tmp)
         plot_snr_fwhm(fieldAml_list, snr_list, fwhm_list, figName)
         
@@ -285,9 +284,10 @@ if __name__ == '__main__':
         Vc = 1 / 6 * np.pi * dco ** 3
         sig = ka * Vc / kT
         t0 = mu / (2 * gam * kT) * (1 + al ** 2) / al
+        print(f't0(s) = ', t0)
         print(f'Neel relaxation for {figName} s:')
-        for i, field in enumerate(fieldAml_list):  
-            tn, hac = NeelRelaxation(sig, t0, ka, Ms, xi0[i], field*1e-3)
+        for j, field in enumerate(fieldAml_list):  
+            tn, hac = NeelRelaxation(sig, t0, ka, Ms, xi0[j], field*1e-3)
             print(f'tn for field ampl {field} (s) = ', tn)
             print(f'hac for field ampl {field} = ', hac)
             print(f'sigma for field ampl {field} = ', sig)

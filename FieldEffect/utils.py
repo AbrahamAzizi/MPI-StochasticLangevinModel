@@ -23,7 +23,7 @@ def fftDif(x, y):
   dy = np.fft.ifft(dy_f).real  
   return dy
 
-def ftsignal(xiH, sigH, m, lz, dt, num, mu, lent, pz, cycs):
+def ftsignal(xiH, sigH, m, dt, lz, mu, num, lent, pz, cycs):
     """ This function return the signal in time and frequency """
     st = np.zeros(lent)
     sf = np.zeros(lent)
@@ -35,7 +35,7 @@ def ftsignal(xiH, sigH, m, lz, dt, num, mu, lent, pz, cycs):
       _, leftpsf, _, rightpsf = psf_xiH(xiH, sigH, m, dt, lent, winlen, i+1)
       st[j*winlen:(j+1)*winlen] = -(pz*mu*num/lz)*(leftpsf)*dmdt[j*winlen:(j+1)*winlen]
       st[(j+1)*winlen:(j+2)*winlen] = -(pz*mu*num/lz)*(rightpsf)*dmdt[(j+1)*winlen:(j+2)*winlen]
-    uk = np.fft.fft(st)
+    uk = np.fft.fft(st, norm='ortho')
     sf = abs(np.fft.fftshift(uk))
     return st, sf
 
